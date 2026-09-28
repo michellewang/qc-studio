@@ -23,10 +23,10 @@ def normalize_note_value(value):
 def save_qc_results_to_csv(out_file, qc_records, drop_duplicates=True):
     """Save QC results from Streamlit session state to a CSV file.
 
-    This function is resilient to both `QCRecord` model instances and plain
-    dicts. It will extract the canonical fields from the updated `QCRecord`:
-    - pipeline (first column in the TSV), qc_task, participant_id, session_id,
-      task_id, run_id, timestamp, rater_id, rater_experience, rater_fatigue, rater_screen_size, final_qc
+        This function is resilient to both `QCRecord` model instances and plain
+        dicts. It will extract canonical fields from `QCRecord` and supports:
+        - single-scale ratings (`final_qc`)
+        - multi-facet ratings (`ratings` dict), exported one row per facet
 
     If a record also contains a `metrics` list (items compatible with
     `MetricQC`), those metrics will be flattened into columns as
@@ -64,9 +64,6 @@ def save_qc_results_to_csv(out_file, qc_records, drop_duplicates=True):
         if session_id is not None:
             session_id = str(session_id)
 
-        raw_notes = rec_dict.get("notes")
-        normalized_notes = normalize_note_value(raw_notes)
-
         row = {
             "pipeline": rec_dict.get("pipeline"),
             "qc_task": rec_dict.get("qc_task"),
@@ -80,9 +77,19 @@ def save_qc_results_to_csv(out_file, qc_records, drop_duplicates=True):
             "rater_fatigue": rec_dict.get("rater_fatigue"),
             "rater_screen_size": rec_dict.get("rater_screen_size"),
             "final_qc": rec_dict.get("final_qc"),
-            "notes": normalized_notes,
+            "facet": pd.NA,
+            "rating_value": pd.NA,
+            "notes": rec_dict.get("notes"),
         }
-        rows.append(row)
+        ratings = rec_dict.get("ratings")
+        if isinstance(ratings, dict) and ratings:
+            for facet, value in ratings.items():
+                facet_row = row.copy()
+                facet_row["facet"] = str(facet)
+                facet_row["rating_value"] = value
+                rows.append(facet_row)
+        else:
+            rows.append(row)
 
     # Column order: pipeline first (e.g. fmriprep, qsiprep), then task and cohort keys.
     expected_columns = [
@@ -98,6 +105,8 @@ def save_qc_results_to_csv(out_file, qc_records, drop_duplicates=True):
         "rater_fatigue",
         "rater_screen_size",
         "final_qc",
+        "facet",
+        "rating_value",
         "notes",
     ]
 
@@ -108,7 +117,7 @@ def save_qc_results_to_csv(out_file, qc_records, drop_duplicates=True):
         df = pd.DataFrame(columns=expected_columns)
 
     if out_file.exists():
-        df_existing = pd.read_csv(out_file, sep="\t", dtype=str)
+        df_existing = pd.read_csv(out_file, sep="\t")
         df = pd.concat([df_existing, df], ignore_index=True)
 
     # Align column order and fill missing cells (e.g. legacy files with different column order).
@@ -125,6 +134,8 @@ def save_qc_results_to_csv(out_file, qc_records, drop_duplicates=True):
     dropped_details: list[str] = []
     if drop_duplicates:
         existing_keys = [k for k in QC_DEDUP_KEYS if k in df.columns]
+        if "facet" in df.columns:
+            existing_keys.append("facet")
         if existing_keys:
             # Normalise to string so int/str type mismatches (e.g. session_id 1 vs "1") don't prevent dedup
             for col in existing_keys:
@@ -143,7 +154,7 @@ def save_qc_results_to_csv(out_file, qc_records, drop_duplicates=True):
 
     # Cohort-style row order: all tasks for participant A session 1, then session 2, then next participant.
     if not df.empty:
-        sort_cols = [c for c in ("pipeline", "participant_id", "session_id", "qc_task") if c in df.columns]
+        sort_cols = [c for c in ("pipeline", "participant_id", "session_id", "qc_task", "facet") if c in df.columns]
         if sort_cols:
             df = df.sort_values(by=sort_cols, kind="mergesort").reset_index(drop=True)
 

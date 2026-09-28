@@ -20,6 +20,7 @@ from components.qc_viewer import (
     _on_notes_change,
     _record_qc_for_current_participant,
     _rating_widget_key,
+    _facet_rating_widget_key,
     _notes_widget_key,
     _record_all_qc_tasks,
 )
@@ -261,6 +262,36 @@ class TestOnRatingChange:
         saved = SessionManager.get_qc_record_for_participant("sub-CMH0001", "ses-01", "anat_wf_qc")
         assert saved.final_qc == "PASS"
         assert saved.notes == ""
+
+    def test_saves_multi_facet_ratings(self, autoplay_session_state):
+        state, _ = autoplay_session_state
+        state[_facet_rating_widget_key("FS_volume_wf_qc", "frontal", 0)] = "PASS"
+        state[_facet_rating_widget_key("FS_volume_wf_qc", "parietal", 0)] = "FAIL"
+        state[_facet_rating_widget_key("FS_volume_wf_qc", "temporal", 0)] = "UNCERTAIN"
+        state[_facet_rating_widget_key("FS_volume_wf_qc", "occipital", 0)] = "PASS"
+
+        _on_rating_change(
+            participant_id="sub-CMH0001",
+            session_id="ses-01",
+            qc_pipeline="fsqc",
+            qc_task="FS_volume_wf_qc",
+            rver=0,
+            nver=0,
+            rating_config={
+                "type": "multi",
+                "scale": ["PASS", "FAIL", "UNCERTAIN"],
+                "facets": ["frontal", "parietal", "temporal", "occipital"],
+            },
+        )
+
+        saved = SessionManager.get_qc_record_for_participant("sub-CMH0001", "ses-01", "FS_volume_wf_qc")
+        assert saved.final_qc is None
+        assert saved.ratings == {
+            "frontal": "PASS",
+            "parietal": "FAIL",
+            "temporal": "UNCERTAIN",
+            "occipital": "PASS",
+        }
 
 
 class TestOnNotesChange:

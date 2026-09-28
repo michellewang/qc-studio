@@ -126,8 +126,8 @@ def _landing_run_summary_lines(
     n_pages: int,
     *,
     all_tasks: bool = False,
-) -> tuple[str, str]:
-    """Two compact lines: pipeline title, then task summary and cohort size."""
+) -> str:
+    """Summary lines: pipeline title, then task summary and cohort size."""
     labels = [str(label).strip() for label in task_labels if str(label).strip()]
     if all_tasks or len(labels) > 1:
         n = len(labels)
@@ -137,8 +137,8 @@ def _landing_run_summary_lines(
         task_part = f"**Task:** {labels[0]}"
     else:
         task_part = "**Task:** —"
-    line2 = f"{task_part} · **Subjects:** {n_subjects} · **Cohort pages:** {n_pages}"
-    return qc_pipeline, line2
+    summary_line = f"Pipeline: {qc_pipeline} | {task_part} | **N_Subjects:** {n_subjects} "
+    return summary_line
 
 
 def show_landing_page(
@@ -189,15 +189,14 @@ def show_landing_page(
     qc_tasks_for_page = _upload_qc_task_filter_keys(qc_task, qc_config_path) or []
     task_keys = qc_tasks_for_page if qc_tasks_for_page else [str(qc_task).strip()]
     task_labels = _qc_task_display_labels(qc_config_path, task_keys)
-    line1, line2 = _landing_run_summary_lines(
+    summary_line = _landing_run_summary_lines(
         qc_pipeline,
         task_labels,
         total_participants_in_ds,
         total_cohort_pages,
         all_tasks=str(qc_task).strip().lower() == "all",
     )
-    st.header(line1)
-    st.markdown(line2)
+    st.subheader(summary_line)
 
     st.markdown("---")
 
@@ -227,7 +226,7 @@ def show_landing_page(
     st.markdown("---")
 
     # Display panel layout preview based on selected panels
-    _display_panel_layout_preview(selected_panels)
+    # _display_panel_layout_preview(selected_panels)
 
 
 def _display_rater_form(entrypoint_rel_path: str | None = None) -> None:
@@ -398,21 +397,54 @@ def _display_csv_upload(
             if st.button(INFO_MESSAGES["load_records_button"], width="stretch"):
                 # Convert dataframe rows to QCRecord objects (current task only)
                 loaded_records = []
-                for _, row in df_task.iterrows():
-                    record = QCRecord(
-                        participant_id=str(row.get("participant_id", "")),
-                        session_id=str(row.get("session_id", "")),
-                        qc_task=str(row.get("qc_task", "")),
-                        pipeline=str(row.get("pipeline", "")),
-                        timestamp=str(row.get("timestamp", "")),
-                        rater_id=str(row.get("rater_id", "")),
-                        rater_experience=str(row.get("rater_experience", "")),
-                        rater_fatigue=str(row.get("rater_fatigue", "")),
-                        rater_screen_size=str(row.get("rater_screen_size", "")),
-                        final_qc=str(row.get("final_qc", "")),
-                        notes=str(row.get("notes", "")) if pd.notna(row.get("notes")) else "",
-                    )
-                    loaded_records.append(record)
+                has_facets = "facet" in df_task.columns and "rating_value" in df_task.columns and df_task["facet"].notna().any()
+                if has_facets:
+                    group_cols = [c for c in ["participant_id", "session_id", "pipeline", "qc_task", "task_id", "run_id"] if c in df_task.columns]
+                    for _, group in df_task.groupby(group_cols, dropna=False, sort=False):
+                        first_row = group.iloc[0]
+                        ratings = {}
+                        for _, row in group.iterrows():
+                            facet = row.get("facet")
+                            value = row.get("rating_value")
+                            if pd.notna(facet) and str(facet).strip():
+                                ratings[str(facet).strip()] = str(value).strip() if pd.notna(value) else ""
+
+                        final_qc_raw = first_row.get("final_qc", "")
+                        final_qc = str(final_qc_raw).strip() if pd.notna(final_qc_raw) else ""
+                        if final_qc.lower() in {"", "none", "nan"}:
+                            final_qc = None
+
+                        record = QCRecord(
+                            participant_id=str(first_row.get("participant_id", "")),
+                            session_id=str(first_row.get("session_id", "")),
+                            qc_task=str(first_row.get("qc_task", "")),
+                            pipeline=str(first_row.get("pipeline", "")),
+                            timestamp=str(first_row.get("timestamp", "")),
+                            rater_id=str(first_row.get("rater_id", "")),
+                            rater_experience=str(first_row.get("rater_experience", "")),
+                            rater_fatigue=str(first_row.get("rater_fatigue", "")),
+                            rater_screen_size=str(first_row.get("rater_screen_size", "")),
+                            final_qc=final_qc,
+                            ratings=ratings,
+                            notes=str(first_row.get("notes", "")) if pd.notna(first_row.get("notes")) else "",
+                        )
+                        loaded_records.append(record)
+                else:
+                    for _, row in df_task.iterrows():
+                        record = QCRecord(
+                            participant_id=str(row.get("participant_id", "")),
+                            session_id=str(row.get("session_id", "")),
+                            qc_task=str(row.get("qc_task", "")),
+                            pipeline=str(row.get("pipeline", "")),
+                            timestamp=str(row.get("timestamp", "")),
+                            rater_id=str(row.get("rater_id", "")),
+                            rater_experience=str(row.get("rater_experience", "")),
+                            rater_fatigue=str(row.get("rater_fatigue", "")),
+                            rater_screen_size=str(row.get("rater_screen_size", "")),
+                            final_qc=str(row.get("final_qc", "")),
+                            notes=str(row.get("notes", "")) if pd.notna(row.get("notes")) else "",
+                        )
+                        loaded_records.append(record)
 
                 SessionManager.set_qc_records(loaded_records)
                 SessionManager.set_qc_cohort_order(qc_cohort)
@@ -433,9 +465,8 @@ def _display_csv_upload(
     st.markdown(
         """
 	**ℹ️ Tips:**
-	- Save your work frequently using the **Save QC** button
-	- Your session data persists within this application
-	- Upload a previous file to resume or review work
+	- Save your work periodically using the **Checkpoint** button
+	- Upload a previous checkpoint to resume or review work
 	"""
     )
 

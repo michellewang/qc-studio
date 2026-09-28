@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from models import MetricQC, QCRecord, QCTask, QCConfig
+from models import MetricQC, QCRecord, QCTask, QCConfig, RatingConfig
 
 pytestmark = pytest.mark.unit
 
@@ -174,6 +174,20 @@ class TestQCTask:
                 montage_path=str(temp_dir / "a.svg"),
                 montage_max_rows=99,
             )
+
+    def test_qc_task_rating_schema_multi_facet(self):
+        task = QCTask(
+            rating=RatingConfig(
+                type="multi",
+                scale=["PASS", "FAIL", "UNCERTAIN"],
+                facets=["frontal", "parietal", "temporal", "occipital"],
+            )
+        )
+
+        assert task.rating is not None
+        assert task.rating.type == "multi"
+        assert task.rating.scale == ["PASS", "FAIL", "UNCERTAIN"]
+        assert task.rating.facets == ["frontal", "parietal", "temporal", "occipital"]
 
 
 class TestQCConfig:

@@ -213,6 +213,26 @@ class TestQCRecordsMethods:
         assert SessionManager.participant_has_decided_qc("sub-02", "ses-01", "anat_wf_qc") is False
         assert SessionManager.participant_has_decided_qc("sub-01", "ses-01", "other_task") is False
 
+    def test_participant_has_decided_qc_multi_facet(self, mock_session_state):
+        st.session_state = mock_session_state.data
+        SessionManager.init_session_state()
+
+        rec = MagicMock()
+        rec.participant_id = "sub-01"
+        rec.session_id = "ses-01"
+        rec.pipeline = "fsqc"
+        rec.qc_task = "FS_volume_wf_qc"
+        rec.final_qc = None
+        rec.ratings = {
+            "frontal": "PASS",
+            "parietal": "FAIL",
+            "temporal": "UNCERTAIN",
+            "occipital": "PASS",
+        }
+
+        SessionManager.add_qc_record(rec)
+        assert SessionManager.participant_has_decided_qc("sub-01", "ses-01", "FS_volume_wf_qc") is True
+
     def test_set_qc_records(self, mock_session_state):
         """Test setting multiple QC records at once."""
         st.session_state = mock_session_state.data

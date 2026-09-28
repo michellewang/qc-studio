@@ -363,8 +363,14 @@ class SessionManager:
     def _final_qc_is_decided(record) -> bool:
         if record is None:
             return False
+        ratings = record.ratings if hasattr(record, "ratings") else record.get("ratings", None)
+        if isinstance(ratings, dict):
+            if not ratings:
+                return False
+            return all(str(v).strip().lower() not in {"", "none", "nan"} for v in ratings.values())
         fq = record.final_qc if hasattr(record, "final_qc") else record.get("final_qc", "")
-        return str(fq) in QC_RATINGS
+        fq_str = str(fq).strip()
+        return fq_str.lower() not in {"", "none", "nan"}
 
     @staticmethod
     def participant_has_decided_qc(participant_id: str, session_id: str, qc_task: str) -> bool:
