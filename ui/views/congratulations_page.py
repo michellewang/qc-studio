@@ -306,18 +306,40 @@ def _display_session_summary(
 
     with col2:
         st.subheader("QC Results Summary")
+
         # Count final_qc values
         if record_list:
-            final_qc_counts = {}
-            for record in record_list:
-                qc_value = record.final_qc
-                if qc_value not in QC_RATINGS:
-                    final_qc_counts["Unrated"] = final_qc_counts.get("Unrated", 0) + 1
-                else:
-                    final_qc_counts[qc_value] = final_qc_counts.get(qc_value, 0) + 1
+            # check if single of multi-facet ratings
+            if hasattr(record_list[0], "ratings") and isinstance(record_list[0].ratings, dict):
+                st.write("**Multi-facet ratings:**")
+                facet_counts = {}
+                for record in record_list:
+                    ratings_map = record.ratings if hasattr(record, "ratings") else record.get("ratings", None)
+                    if isinstance(ratings_map, dict) and ratings_map:
+                        for facet, value in ratings_map.items():
+                            facet_counts.setdefault(facet, {}).setdefault(value, 0)
+                            facet_counts[facet][value] += 1
 
-            for qc_status, count in sorted(final_qc_counts.items()):
-                st.write(f"**{qc_status}:** {count}")
+                for facet, counts in facet_counts.items():
+                    # st.write(f"**{facet}:**")
+                    # Build a string of ratings and counts for this facet
+                    # And display in a single line
+                    rating_strings = [f"**{facet}:**"] + [f"{rating}: {count}" for rating, count in sorted(counts.items())]
+                    st.write(f"- {' '.join(rating_strings)}")
+
+            else:
+                st.write("**Single-scale ratings:**")
+
+                final_qc_counts = {}
+                for record in record_list:
+                    qc_value = record.final_qc
+                    if qc_value not in QC_RATINGS:
+                        final_qc_counts["Unrated"] = final_qc_counts.get("Unrated", 0) + 1
+                    else:
+                        final_qc_counts[qc_value] = final_qc_counts.get(qc_value, 0) + 1
+
+                for qc_status, count in sorted(final_qc_counts.items()):
+                    st.write(f"**{qc_status}:** {count}")
 
 
 def _export_qc_results(
