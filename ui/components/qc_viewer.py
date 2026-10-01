@@ -27,7 +27,7 @@ from utils.data_loaders import load_montage_data as _load_montage_data_uncached
 from utils.config import parse_qc_config
 from utils.cohort import compact_session_label
 from utils.navigation import request_navigation_rerun
-from utils.export import save_qc_results_to_csv, normalize_note_value
+from utils.export import build_qc_results_dataframe, save_qc_results_to_csv, normalize_note_value
 from managers.niivue_viewer_manager import NiivueViewerManager, NiivueViewerConfig
 from managers.session_manager import SessionManager
 from models import QCRecord
@@ -58,6 +58,58 @@ def _clean_filename(filename: str) -> str:
     if "sub-" in clean:
         clean = re.sub(r"^.*sub-[^_]+_", "", clean)
     return clean or filename
+
+
+def _pause_autoplay_for_notes_edit() -> None:
+    """Stop autoplay when the user explicitly starts editing notes."""
+    SessionManager.set_autoplay_enabled(False)
+    SessionManager.set_autoplay_start_time(0.0)
+
+
+def _notes_edit_mode_key(qc_task: str) -> str:
+    return f"_notes_edit_mode_{qc_task}"
+
+
+def _toggle_notes_editing_for_task(qc_task: str) -> None:
+    """Reveal the notes box and pause autoplay until the user is done."""
+    st.session_state[_notes_edit_mode_key(qc_task)] = True
+    _pause_autoplay_for_notes_edit()
+
+
+def _save_and_toggle_notes_editing_for_task(
+    participant_id: str | None,
+    session_id: str | None,
+    qc_pipeline: str | None,
+    qc_task: str,
+    rver: int,
+    nver: int,
+    rating_config: dict[str, Any] | None = None,
+) -> None:
+    """Persist the current task state before enabling note editing."""
+    _on_rating_change(participant_id, session_id, qc_pipeline, qc_task, rver, nver, rating_config)
+    _toggle_notes_editing_for_task(qc_task)
+
+
+def _save_and_start_autoplay(
+    participant_id: str | None,
+    session_id: str | None,
+    qc_pipeline: str | None,
+    qc_tasks: list,
+) -> None:
+    """Persist the current page before enabling autoplay."""
+    _save_current_page_qc_state(participant_id, session_id, qc_pipeline, qc_tasks)
+    SessionManager.set_autoplay_enabled(True)
+    SessionManager.set_autoplay_start_time(time.time())
+
+
+def _save_current_page_qc_state(
+    participant_id: str | None,
+    session_id: str | None,
+    qc_pipeline: str | None,
+    qc_tasks: list,
+) -> None:
+    """Flush the current page widgets into session records without changing navigation."""
+    _record_all_qc_tasks(participant_id, session_id, qc_pipeline, qc_tasks)
 
 
 def _unique_montage_tab_names(image_keys: list[str]) -> list[str]:
@@ -116,7 +168,13 @@ def try_autoplay_advance_if_due(
         SessionManager.set_autoplay_start_time(time.time())
     else:
         _record_all_qc_tasks(participant_id, session_id, qc_pipeline, tasks)
-        if not _has_active_subject_filter() and (
+        if _has_active_subject_filter() and not _filtered_cohort_complete_for_tasks(
+            tasks, qc_cohort, participant_ids, session_id, total_participants
+        ):
+            msg = "⚠️ Some subjects remain unrated. Remove the filter to continue autoplay through the remaining subjects."
+            st.info(msg)
+            st.session_state["_pending_incomplete_cohort_msg"] = msg
+        elif not _has_active_subject_filter() and (
             qc_cohort
             and SessionManager.all_qc_cohort_pages_complete_for_tasks(tasks, qc_cohort)
             or not qc_cohort
@@ -540,12 +598,61 @@ def _collect_task_rating_payload(qc_task: str, rver: int, rating_config: dict[st
     return None, ratings
 
 
+def _is_stale_widget_callback(rver: int, nver: int) -> bool:
+    """True when a callback belongs to an older participant/page widget generation."""
+    return int(rver) != SessionManager.get_rating_version() or int(nver) != SessionManager.get_notes_version()
+
+
+def _fallback_rating_config_for_task(
+    participant_id: str,
+    session_id: str,
+    qc_task: str,
+    rver: int,
+) -> dict[str, Any] | None:
+    """Best-effort config inference for save paths invoked before viewer render.
+
+    Sidebar actions (Play/Checkpoint) run before the main viewer on each rerun.
+    If ``_qc_rating_cfg_by_task`` is not populated yet, infer multi-facet shape
+    from the latest saved record or from live widget keys so current page edits
+    are not dropped.
+    """
+    existing = SessionManager.get_qc_record_for_participant(participant_id, session_id, qc_task)
+    if existing is not None:
+        existing_ratings = existing.ratings if hasattr(existing, "ratings") else existing.get("ratings")
+        if isinstance(existing_ratings, dict) and existing_ratings:
+            facets = [str(f).strip() for f in existing_ratings.keys() if str(f).strip()]
+            if facets:
+                return {"type": "multi", "scale": list(QC_RATINGS), "facets": facets}
+
+    effective_rver = _latest_widget_version_for_task(qc_task, "qc_rating_", rver)
+    prefix = f"qc_rating_{qc_task}_"
+    facet_tokens: list[str] = []
+    for key in list(st.session_state.keys()):
+        if not isinstance(key, str) or not key.startswith(prefix):
+            continue
+        suffix = key[len(prefix) :]
+        if suffix == str(effective_rver):
+            # Single-scale key: qc_rating_<task>_<version>
+            continue
+        tail = f"_{effective_rver}"
+        if suffix.endswith(tail):
+            token = suffix[: -len(tail)].strip()
+            if token and token not in facet_tokens:
+                facet_tokens.append(token)
+
+    if facet_tokens:
+        return {"type": "multi", "scale": list(QC_RATINGS), "facets": facet_tokens}
+    return None
+
+
 def _on_rating_change(participant_id, session_id, qc_pipeline, qc_task, rver, nver, rating_config=None):
     """Save rating and notes as soon as either widget changes.
 
     Used by both the rating radio and the notes box so a later forced page jump
     (sidebar search, autoplay, subject-list click) cannot drop unsaved notes.
     """
+    if _is_stale_widget_callback(rver, nver):
+        return
     rating, ratings = _collect_task_rating_payload(qc_task, rver, rating_config)
     notes = st.session_state.get(_notes_widget_key(qc_task, nver), "")
     _record_qc_for_current_participant(participant_id, session_id, qc_pipeline, qc_task, rating, notes, ratings=ratings)
@@ -553,9 +660,10 @@ def _on_rating_change(participant_id, session_id, qc_pipeline, qc_task, rver, nv
 
 def _on_notes_change(participant_id, session_id, qc_pipeline, qc_task, rver, nver, rating_config=None):
     """Same save path as ``_on_rating_change``; named for the notes widget callback."""
+    if _is_stale_widget_callback(rver, nver):
+        return
     if SessionManager.is_autoplay_enabled():
-        SessionManager.set_autoplay_enabled(False)
-        SessionManager.set_autoplay_start_time(0.0)
+        _pause_autoplay_for_notes_edit()
     _on_rating_change(participant_id, session_id, qc_pipeline, qc_task, rver, nver, rating_config)
 
 
@@ -572,7 +680,7 @@ def _display_qc_rating_for_task(
     """PASS/FAIL/UNCERTAIN and notes for one task (shown under that task's viewers)."""
     label = (display_label or qc_task).strip()
     cfg = _task_rating_config(rating_config)
-    st.markdown(f"#### 📊 Ratings")
+    st.markdown(f"#### 📊 Rate **{label}**")
     rver = SessionManager.get_rating_version()
     nver = SessionManager.get_notes_version()
     default_rating = SessionManager.get_default_qc_rating()
@@ -644,14 +752,24 @@ def _display_qc_rating_for_task(
                             args=(participant_id, session_id, qc_pipeline, qc_task, rver, nver, cfg),
                         )
 
-    st.text_area(
-        MESSAGES["qc_notes_prompt"],
-        value=initial_notes,
-        key=_notes_widget_key(qc_task, nver),
-        height=notes_height,
-        on_change=_on_notes_change,
-        args=(participant_id, session_id, qc_pipeline, qc_task, rver, nver, cfg),
-    )
+    notes_editable = st.session_state.get(_notes_edit_mode_key(qc_task), False)
+    action_col, notes_col = st.columns([2, 6])
+    with action_col:
+        st.caption("Autoplay will be paused when you add notes. Notes are saved when you continue with rating or navigation.")
+        if st.button("Add notes" if not notes_editable else "Edit notes", key=f"_toggle_notes_{qc_task}_{nver}", use_container_width=True):
+            _save_and_toggle_notes_editing_for_task(participant_id, session_id, qc_pipeline, qc_task, rver, nver, cfg)
+            st.rerun()
+
+    with notes_col:
+        st.text_area(
+            MESSAGES["qc_notes_prompt"],
+            value=initial_notes,
+            key=_notes_widget_key(qc_task, nver),
+            height=notes_height,
+            disabled=not notes_editable,
+            on_change=_on_notes_change,
+            args=(participant_id, session_id, qc_pipeline, qc_task, rver, nver, cfg),
+        )
 
 
 def _record_all_qc_tasks(participant_id: str, session_id: str, qc_pipeline: str, qc_tasks: list) -> None:
@@ -660,6 +778,8 @@ def _record_all_qc_tasks(participant_id: str, session_id: str, qc_pipeline: str,
     rating_cfg_by_task = st.session_state.get("_qc_rating_cfg_by_task", {})
     for t in qc_tasks:
         rating_cfg = rating_cfg_by_task.get(t)
+        if rating_cfg is None:
+            rating_cfg = _fallback_rating_config_for_task(participant_id, session_id, t, rver)
         rating, ratings = _collect_task_rating_payload(t, rver, rating_cfg)
         latest_nver = _latest_widget_version_for_task(t, "qc_notes_", nver)
         notes = st.session_state.get(_notes_widget_key(t, latest_nver), "")
@@ -827,38 +947,7 @@ def _default_qc_checkpoint_path(
 
 def _checkpoint_frame_for_records(records: list) -> pd.DataFrame:
     """Normalize QC records to the checkpoint TSV schema before comparison or export."""
-    columns = [
-        "pipeline",
-        "qc_task",
-        "participant_id",
-        "session_id",
-        "task_id",
-        "run_id",
-        "timestamp",
-        "rater_id",
-        "rater_experience",
-        "rater_fatigue",
-        "final_qc",
-        "notes",
-    ]
-    rows = []
-    for rec in records:
-        if hasattr(rec, "model_dump"):
-            rows.append(rec.model_dump())
-        elif hasattr(rec, "dict"):
-            rows.append(rec.dict())
-        elif isinstance(rec, dict):
-            rows.append(rec)
-    df = pd.DataFrame(rows)
-    if df.empty:
-        df = pd.DataFrame(columns=columns)
-    df = df.reindex(columns=columns, fill_value="")
-    for col in columns:
-        if col == "notes":
-            df[col] = df[col].map(normalize_note_value)
-        else:
-            df[col] = df[col].fillna("").astype(str)
-    return df.sort_values(by=["participant_id", "session_id", "pipeline", "qc_task"], kind="mergesort").reset_index(drop=True)
+    return build_qc_results_dataframe(records)
 
 
 def _latest_checkpoint_path_for_session(out_dir: str | None, qc_session_id: str | None = None) -> Path | None:
@@ -887,7 +976,10 @@ def _checkpoint_contents_match_records(records: list, out_dir: str | None, qc_se
         "rater_id",
         "rater_experience",
         "rater_fatigue",
+        "rater_screen_size",
         "final_qc",
+        "facet",
+        "rating_value",
         "notes",
     ]
     current_df = _checkpoint_frame_for_records(records).reindex(columns=comparison_columns, fill_value="")
@@ -899,8 +991,8 @@ def _checkpoint_contents_match_records(records: list, out_dir: str | None, qc_se
         else:
             current_df[col] = current_df[col].fillna("").astype(str)
             latest_df[col] = latest_df[col].fillna("").astype(str)
-    current_df = current_df.sort_values(by=["participant_id", "session_id", "pipeline", "qc_task"], kind="mergesort").reset_index(drop=True)
-    latest_df = latest_df.sort_values(by=["participant_id", "session_id", "pipeline", "qc_task"], kind="mergesort").reset_index(drop=True)
+    current_df = current_df.sort_values(by=["pipeline", "participant_id", "session_id", "qc_task", "facet"], kind="mergesort").reset_index(drop=True)
+    latest_df = latest_df.sort_values(by=["pipeline", "participant_id", "session_id", "qc_task", "facet"], kind="mergesort").reset_index(drop=True)
     return current_df.equals(latest_df)
 
 
@@ -1063,8 +1155,7 @@ def _display_qc_pagination_controls(
     autoplay_col1, autoplay_col2 = st.columns([1, 1])
     with autoplay_col1:
         if st.button(MESSAGES["play_button"], width="stretch", key="autoplay_play"):
-            SessionManager.set_autoplay_enabled(True)
-            SessionManager.set_autoplay_start_time(time.time())
+            _save_and_start_autoplay(participant_id, session_id, qc_pipeline, qc_tasks)
             request_navigation_rerun(st)
 
     with autoplay_col2:
@@ -1118,6 +1209,7 @@ def _display_qc_pagination_controls(
         key="create_checkpoint",
         help=MESSAGES["create_checkpoint_help"],
     ):
+        _save_current_page_qc_state(participant_id, session_id, qc_pipeline, qc_tasks)
         records = SessionManager.get_latest_qc_records_per_dedup(None)
         if not records:
             st.session_state["_pending_checkpoint_msg"] = ("info", INFO_MESSAGES["no_export_records"])

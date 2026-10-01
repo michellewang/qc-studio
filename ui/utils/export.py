@@ -38,44 +38,37 @@ def _normalize_screen_size_label(value):
     return mapping.get(text, text)
 
 
-def save_qc_results_to_csv(out_file, qc_records, drop_duplicates=True):
-    """Save QC results from Streamlit session state to a CSV file.
-
-        This function is resilient to both `QCRecord` model instances and plain
-        dicts. It will extract canonical fields from `QCRecord` and supports:
-        - single-scale ratings (`final_qc`)
-        - multi-facet ratings (`ratings` dict), exported one row per facet
-
-    If a record also contains a `metrics` list (items compatible with
-    `MetricQC`), those metrics will be flattened into columns as
-    `<metric_name>_value` and `<metric_name>` (for qc string), and
-    `QC_notes` (if present) will be placed in a `notes` column.
-
-    Parameters
-    ----------
-    out_file : str or Path
-            Path where the CSV will be saved.
-    qc_records : list
-            List of `QCRecord` objects (or dicts) stored.
-    """
-    out_file = Path(out_file)
-    out_file.parent.mkdir(parents=True, exist_ok=True)
+def build_qc_results_dataframe(qc_records):
+    """Build the canonical tabular QC export frame from in-memory QC records."""
+    expected_columns = [
+        "pipeline",
+        "qc_task",
+        "participant_id",
+        "session_id",
+        "task_id",
+        "run_id",
+        "timestamp",
+        "rater_id",
+        "rater_experience",
+        "rater_fatigue",
+        "rater_screen_size",
+        "final_qc",
+        "facet",
+        "rating_value",
+        "notes",
+    ]
 
     rows = []
 
     for rec in qc_records:
-        # support both model instances and plain dicts
         if hasattr(rec, "model_dump"):
-            # pydantic v2 model -> convert to dict for uniform access
             rec_dict = rec.model_dump()
         elif hasattr(rec, "dict"):
-            # pydantic v1 fallback
             rec_dict = rec.dict()
         elif isinstance(rec, dict):
             rec_dict = rec
         else:
-            # Handle this better with exceptions
-            print("Unknown record format")
+            continue
 
         participant_id = rec_dict.get("participant_id") or ""
         session_id = rec_dict.get("session_id") or ""
@@ -109,7 +102,51 @@ def save_qc_results_to_csv(out_file, qc_records, drop_duplicates=True):
         else:
             rows.append(row)
 
-    # Column order: pipeline first (e.g. fmriprep, qsiprep), then task and cohort keys.
+    if rows:
+        df = pd.DataFrame(rows)
+    else:
+        df = pd.DataFrame(columns=expected_columns)
+
+    for col in expected_columns:
+        if col not in df.columns:
+            df[col] = pd.NA
+    extra = [c for c in df.columns if c not in expected_columns]
+    if extra:
+        df = df.drop(columns=extra)
+    df = df[expected_columns]
+
+    if not df.empty:
+        sort_cols = [c for c in ("pipeline", "participant_id", "session_id", "qc_task", "facet") if c in df.columns]
+        if sort_cols:
+            df = df.sort_values(by=sort_cols, kind="mergesort").reset_index(drop=True)
+
+    return df
+
+
+def save_qc_results_to_csv(out_file, qc_records, drop_duplicates=True):
+    """Save QC results from Streamlit session state to a CSV file.
+
+        This function is resilient to both `QCRecord` model instances and plain
+        dicts. It will extract canonical fields from `QCRecord` and supports:
+        - single-scale ratings (`final_qc`)
+        - multi-facet ratings (`ratings` dict), exported one row per facet
+
+    If a record also contains a `metrics` list (items compatible with
+    `MetricQC`), those metrics will be flattened into columns as
+    `<metric_name>_value` and `<metric_name>` (for qc string), and
+    `QC_notes` (if present) will be placed in a `notes` column.
+
+    Parameters
+    ----------
+    out_file : str or Path
+            Path where the CSV will be saved.
+    qc_records : list
+            List of `QCRecord` objects (or dicts) stored.
+    """
+    out_file = Path(out_file)
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+
+    df = build_qc_results_dataframe(qc_records)
     expected_columns = [
         "pipeline",
         "qc_task",
@@ -127,12 +164,6 @@ def save_qc_results_to_csv(out_file, qc_records, drop_duplicates=True):
         "rating_value",
         "notes",
     ]
-
-    # Create dataframe with proper columns even if empty
-    if rows:
-        df = pd.DataFrame(rows)
-    else:
-        df = pd.DataFrame(columns=expected_columns)
 
     if out_file.exists():
         df_existing = pd.read_csv(out_file, sep="\t")
