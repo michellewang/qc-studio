@@ -8,7 +8,6 @@ from constants import (
     EXPERIENCE_LEVELS,
     FATIGUE_LEVELS,
     SCREEN_SIZES,
-    PANEL_CONFIG,
     UPLOAD_FILE_TYPES,
     MESSAGES,
     ERROR_MESSAGES,
@@ -23,7 +22,6 @@ from constants import (
 from managers.session_manager import SessionManager
 from models import QCRecord
 from managers.panel_layout_manager import PanelLayoutManager
-from managers.niivue_viewer_manager import NiivueViewerManager
 from utils.config import list_qc_tasks_from_json, parse_qc_config
 from utils.cohort import (
     build_qc_cohort,
@@ -425,7 +423,7 @@ def show_landing_page(
 
     # Middle column: Panel Selection and Montage Settings
     with col2:
-        selected_panels = PanelLayoutManager.render_panel_header_with_controls()
+        PanelLayoutManager.render_panel_header_with_controls()
         st.divider()
         _display_montage_settings()
 
@@ -441,9 +439,6 @@ def show_landing_page(
         )
 
     st.markdown("---")
-
-    # Display panel layout preview based on selected panels
-    # _display_panel_layout_preview(selected_panels)
 
 
 def _display_rater_form(entrypoint_rel_path: str | None = None) -> None:
@@ -659,63 +654,6 @@ def _display_csv_upload(
 	- Upload a previous checkpoint to resume or review work
 	"""
     )
-
-
-def _display_panel_layout_preview(selected_panels: dict) -> None:
-    """Display a preview of the panel layout based on selected panels.
-
-    When Niivue is selected: Shows 3-column layout (controls | Niivue | Montage/IQM)
-    When Niivue is not selected: Shows full-width layout
-
-    Args:
-            selected_panels: Dictionary of selected panels
-    """
-    st.subheader("📐 Panel Layout Preview")
-
-    show_niivue = selected_panels.get("niivue", False)
-    show_montage = selected_panels.get("montage", False)
-    show_iqm = selected_panels.get("iqm", False)
-
-    # No panels selected
-    if not (show_niivue or show_montage or show_iqm):
-        st.info("👉 Select panels above to see the layout preview")
-        return
-
-    # 3-column layout: Niivue with another panel
-    if show_niivue and (show_montage or show_iqm):
-        st.write("**Layout:** 3-column (Controls | Niivue Viewer | Secondary Panel)")
-        ctrl_col, viewer_col, panel_col = st.columns([0.2, 0.4, 0.4], gap="small")
-
-        with ctrl_col:
-            st.info("🎮 **Controls**\n\n- View Mode\n- Overlay\n- Colormap\n- Opacity")
-
-        with viewer_col:
-            st.info("🧠 **Niivue Viewer**\n\n3D MRI data will be displayed here")
-
-        with panel_col:
-            secondary = "📊 **Montage**" if show_montage else "📈 **QC Metrics**"
-            st.info(f"{secondary}\n\nSecondary visualization will be displayed here")
-
-    # Full-width Niivue only
-    elif show_niivue:
-        st.write("**Layout:** 2-column (Controls | Niivue Viewer)")
-        left_col, right_col = st.columns([0.32, 0.68], gap="small")
-
-        with left_col:
-            st.info("🎮 **Controls**\n\n- View Mode\n- Overlay\n- Colormap\n- Opacity")
-
-        with right_col:
-            st.info("🧠 **Niivue Viewer**\n\n3D MRI data will be displayed here")
-
-    # Full-width Montage only
-    elif show_montage:
-        st.write("**Layout:** Full-width (Montage)")
-        st.info("📊 **Montage**\n\nMontage visualization will be displayed across the full width")
-
-    # Full-width IQM only
-    elif show_iqm:
-        st.write("**Layout:** Full-width (QC Metrics)")
-        st.info("📈 **QC Metrics**\n\nQC metrics will be displayed across the full width")
 
 
 def _display_montage_settings() -> None:
