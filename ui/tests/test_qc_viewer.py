@@ -1131,6 +1131,7 @@ class TestDisplayQcPagination:
         saved = SessionManager.get_qc_record_for_participant("sub-CMH0003", "ses-01", "anat_wf_qc")
         assert saved.final_qc == "PASS"
         assert state["current_page"] == 3  # still incomplete (sub-CMH0002 unrated), must not jump ahead
+        assert "_pending_incomplete_cohort_msg" in state
         mock_rerun.assert_called_once()
 
     def test_next_button_builds_cohort_from_participant_ids_and_advances_when_complete(self, autoplay_session_state, monkeypatch):

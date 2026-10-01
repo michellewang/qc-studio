@@ -175,7 +175,7 @@ def show_congratulations_page(
     )
 
     # Action buttons
-    col1, col2, col3 = st.columns([1, 1, 1])
+    col1, col2 = st.columns([1, 1])
     with col1:
         export_target = _resolve_congrats_export_file_path(out_dir, rater_id, st.session_state.get(CONGRATS_EXPORT_PATH_KEY))
         if st.session_state.get(OVERWRITE_CONFIRMATION_PATH_KEY) == str(export_target):
@@ -207,16 +207,6 @@ def show_congratulations_page(
     with col2:
         if st.button(MESSAGES["previous_button"], width="stretch"):
             SessionManager.previous_page()
-            if entrypoint_rel_path:
-                st.switch_page(entrypoint_rel_path)
-            st.rerun()
-    with col3:
-        if st.button(MESSAGES["start_over_button"], width="stretch"):
-            SessionManager.set_landing_page_complete(False)
-            SessionManager.set_qc_cohort_order([])
-            SessionManager.set_participant_ids([])
-            SessionManager.set_qc_records([])
-            SessionManager.set_current_page(1)
             if entrypoint_rel_path:
                 st.switch_page(entrypoint_rel_path)
             st.rerun()

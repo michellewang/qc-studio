@@ -21,6 +21,7 @@ from constants import (
     VIEW_MODES,
     OVERLAY_COLORMAPS,
     RATING_FACET_COLUMNS,
+    DEFAULT_QC_RATING_NONE,
 )
 from utils.data_loaders import load_montage_data as _load_montage_data_uncached
 from utils.config import parse_qc_config
@@ -574,6 +575,8 @@ def _display_qc_rating_for_task(
     st.markdown(f"#### 📊 Ratings")
     rver = SessionManager.get_rating_version()
     nver = SessionManager.get_notes_version()
+    default_rating = SessionManager.get_default_qc_rating()
+    default_is_unrated = str(default_rating).strip().lower() == str(DEFAULT_QC_RATING_NONE).lower()
     existing_record = SessionManager.get_qc_record_for_participant(participant_id, session_id, qc_task)
     if existing_record:
         existing_rating = existing_record.final_qc if hasattr(existing_record, "final_qc") else existing_record.get("final_qc")
@@ -583,7 +586,10 @@ def _display_qc_rating_for_task(
         initial_notes = existing_record.notes if hasattr(existing_record, "notes") else existing_record.get("notes", "")
         initial_notes = initial_notes or ""
     else:
-        initial_rating = cfg["scale"][0]
+        if default_is_unrated:
+            initial_rating = None
+        else:
+            initial_rating = default_rating if default_rating in cfg["scale"] else cfg["scale"][0]
         existing_ratings = {}
         initial_notes = ""
 
@@ -614,9 +620,17 @@ def _display_qc_rating_for_task(
                     # print(f"Existing ratings for task '{qc_task}': {existing_ratings}")
 
                     if not existing_ratings:
-                        facet_initial = options[0]  # Default to the first option if no existing ratings
+                        if default_is_unrated:
+                            facet_initial = None
+                        else:
+                            facet_initial = default_rating if default_rating in options else options[0]
                     else:
                         facet_initial = existing_ratings.get(facet)
+                        if facet_initial not in options:
+                            if default_is_unrated:
+                                facet_initial = None
+                            else:
+                                facet_initial = default_rating if default_rating in options else options[0]
 
                     # print(f"Rendering facet '{facet}' with initial value '{facet_initial}' and options {options}")
 
@@ -1019,6 +1033,9 @@ def _render_next_page_button(
             msg = "✅ The active filtered subject list is fully rated. Remove the filter to continue rating any remaining unrated subjects."
             st.info(msg)
             st.session_state["_pending_filtered_subject_msg"] = msg
+        else:
+            msg = "⚠️ Some subjects remain unrated. Complete all required ratings before moving to the final page."
+            st.session_state["_pending_incomplete_cohort_msg"] = msg
 
         if SessionManager.is_autoplay_enabled():
             SessionManager.set_autoplay_start_time(time.time())
@@ -1064,6 +1081,9 @@ def _display_qc_pagination_controls(
 
     if pending := st.session_state.pop("_pending_filtered_subject_msg", None):
         st.info(pending)
+
+    if pending := st.session_state.pop("_pending_incomplete_cohort_msg", None):
+        st.warning(pending)
 
     prev_page, next_page = _filtered_adjacent_pages(
         current_page=current_page,

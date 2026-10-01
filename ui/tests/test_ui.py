@@ -104,6 +104,57 @@ class TestParseArgs:
         )
 
         assert args.session_list is None
+        assert args.default_qc_rating == "PASS"
+
+    def test_parse_args_with_default_qc_rating_override(self):
+        """CLI should accept overriding the default preselected QC rating."""
+        from main import parse_args
+
+        args = parse_args(
+            [
+                "--dataset_dir",
+                "/path/to/dataset",
+                "--participant_list",
+                "/path/to/participants.tsv",
+                "--qc_pipeline",
+                "fmriprep",
+                "--qc_task",
+                "anat_wf_qc",
+                "--output_dir",
+                "/output",
+                "--qc_json",
+                "/path/to/qc_config.json",
+                "--default_qc_rating",
+                "FAIL",
+            ]
+        )
+
+        assert args.default_qc_rating == "FAIL"
+
+    def test_parse_args_with_default_qc_rating_none(self):
+        """CLI should accept an explicit unrated default (None)."""
+        from main import parse_args
+
+        args = parse_args(
+            [
+                "--dataset_dir",
+                "/path/to/dataset",
+                "--participant_list",
+                "/path/to/participants.tsv",
+                "--qc_pipeline",
+                "fmriprep",
+                "--qc_task",
+                "anat_wf_qc",
+                "--output_dir",
+                "/output",
+                "--qc_json",
+                "/path/to/qc_config.json",
+                "--default_qc_rating",
+                "None",
+            ]
+        )
+
+        assert args.default_qc_rating == "None"
 
     def test_landing_page_entrypoint_applies_cli_rater_id_to_session(self, monkeypatch):
         """The multipage landing-page entrypoint should seed the session with the CLI rater ID."""

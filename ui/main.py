@@ -16,7 +16,7 @@ load_dotenv()
 from app import app, resolve_qc_tasks
 from components.qc_viewer import AUTOPLAY_RUN_CTX_KEY
 from managers.session_manager import SessionManager
-from constants import SESSION_KEYS
+from constants import SESSION_KEYS, DEFAULT_QC_RATING, DEFAULT_QC_RATING_OPTIONS
 from views.sidebar_cohort_nav import render_sidebar_cohort_subjects
 from utils.cohort import (
     build_qc_cohort,
@@ -84,6 +84,14 @@ def parse_args(args=None):
         required=False,
         default=None,
     )
+    parser.add_argument(
+        "--default_qc_rating",
+        dest="default_qc_rating",
+        help=("Default preselected QC rating for unrated forms."),
+        required=False,
+        default=DEFAULT_QC_RATING,
+        choices=DEFAULT_QC_RATING_OPTIONS,
+    )
 
     return parser.parse_args(args)
 
@@ -140,6 +148,7 @@ def get_cli_run_context():
         "participant_ids": participant_ids,
         "qc_cohort": qc_cohort,
         "rater_id": getattr(args, "rater_id", None),
+        "default_qc_rating": getattr(args, "default_qc_rating", DEFAULT_QC_RATING),
     }
 
 
@@ -161,6 +170,10 @@ def main():
     SessionManager.init_session_state()
     if ctx.get("rater_id"):
         SessionManager.set_rater_id(ctx["rater_id"])
+    # Seed default rating from CLI only before landing is completed.
+    # After onboarding, keep any user override selected in the landing sidebar.
+    if not SessionManager.is_landing_page_complete():
+        SessionManager.set_default_qc_rating(ctx.get("default_qc_rating", DEFAULT_QC_RATING))
     selected_qc_task = SessionManager.get_selected_qc_task()
     if selected_qc_task:
         qc_task = selected_qc_task

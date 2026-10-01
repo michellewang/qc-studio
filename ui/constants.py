@@ -29,6 +29,8 @@ PANEL_CONFIG = {
 # QC rating options
 QC_RATINGS = ["PASS", "FAIL", "UNCERTAIN"]
 DEFAULT_QC_RATING = "PASS"
+DEFAULT_QC_RATING_NONE = "None"
+DEFAULT_QC_RATING_OPTIONS = QC_RATINGS + [DEFAULT_QC_RATING_NONE]
 RATING_FACET_COLUMNS = 12
 
 # Columns used to identify duplicate QC rows when merging/saving results
@@ -81,6 +83,7 @@ SESSION_KEYS = {
     "qc_cohort_order": "qc_cohort_order",
     "landing_page_complete": "landing_page_complete",
     "selected_qc_task": "selected_qc_task",
+    "default_qc_rating": "default_qc_rating",
     "selected_panels": "selected_panels",
     "montage_max_rows": "montage_max_rows",
     "montage_max_cols": "montage_max_cols",

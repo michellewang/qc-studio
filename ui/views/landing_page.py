@@ -8,6 +8,7 @@ from constants import (
     EXPERIENCE_LEVELS,
     FATIGUE_LEVELS,
     SCREEN_SIZES,
+    DEFAULT_QC_RATING_OPTIONS,
     UPLOAD_FILE_TYPES,
     MESSAGES,
     ERROR_MESSAGES,
@@ -389,6 +390,17 @@ def show_landing_page(
             selected_task = available_qc_tasks[available_qc_tasks.index(selected_task)]
         SessionManager.set_selected_qc_task(selected_task)
         qc_task = selected_task
+
+        default_rating = SessionManager.get_default_qc_rating()
+        default_idx = DEFAULT_QC_RATING_OPTIONS.index(default_rating) if default_rating in DEFAULT_QC_RATING_OPTIONS else 0
+        st.sidebar.subheader("Default QC rating")
+        selected_default_rating = st.sidebar.radio(
+            label="Choose default rating",
+            options=DEFAULT_QC_RATING_OPTIONS,
+            index=default_idx,
+            key="landing_page_default_qc_rating_radio",
+        )
+        SessionManager.set_default_qc_rating(selected_default_rating)
     else:
         SessionManager.set_selected_qc_task("")
 

@@ -7,6 +7,9 @@ from constants import (
     DEFAULT_MONTAGE_MAX_ROWS,
     DEFAULT_MONTAGE_MAX_COLS,
     QC_RATINGS,
+    DEFAULT_QC_RATING,
+    DEFAULT_QC_RATING_NONE,
+    DEFAULT_QC_RATING_OPTIONS,
 )
 from utils.cohort import bare_bids_id as _bare_bids_id
 
@@ -61,6 +64,7 @@ class SessionManager:
             SESSION_KEYS["qc_cohort_order"]: [],
             SESSION_KEYS["landing_page_complete"]: False,
             SESSION_KEYS["selected_qc_task"]: "",
+            SESSION_KEYS["default_qc_rating"]: DEFAULT_QC_RATING,
             SESSION_KEYS["selected_panels"]: DEFAULT_PANELS.copy(),
             SESSION_KEYS["montage_max_rows"]: DEFAULT_MONTAGE_MAX_ROWS,
             SESSION_KEYS["montage_max_cols"]: DEFAULT_MONTAGE_MAX_COLS,
@@ -188,6 +192,27 @@ class SessionManager:
     def set_selected_qc_task(qc_task: str):
         """Persist the landing-page QC task selection for the current session."""
         st.session_state[SESSION_KEYS["selected_qc_task"]] = str(qc_task or "").strip()
+
+    @staticmethod
+    def get_default_qc_rating() -> str:
+        """Get the session-level default QC rating used to preselect unrated forms."""
+        value = str(st.session_state.get(SESSION_KEYS["default_qc_rating"], DEFAULT_QC_RATING) or "").strip()
+        if not value:
+            return DEFAULT_QC_RATING
+        if value.lower() == DEFAULT_QC_RATING_NONE.lower():
+            return DEFAULT_QC_RATING_NONE
+        value_u = value.upper()
+        return value_u if value_u in QC_RATINGS else DEFAULT_QC_RATING
+
+    @staticmethod
+    def set_default_qc_rating(rating: str):
+        """Set the session-level default QC rating (falls back to DEFAULT_QC_RATING)."""
+        value = str(rating or "").strip()
+        if value.lower() == DEFAULT_QC_RATING_NONE.lower():
+            st.session_state[SESSION_KEYS["default_qc_rating"]] = DEFAULT_QC_RATING_NONE
+            return
+        value_u = value.upper()
+        st.session_state[SESSION_KEYS["default_qc_rating"]] = value_u if value_u in DEFAULT_QC_RATING_OPTIONS else DEFAULT_QC_RATING
 
     # Panel Selection Methods
     @staticmethod

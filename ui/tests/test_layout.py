@@ -210,9 +210,9 @@ class TestShowLandingPage:
                 qc_config_path=str(qc_path),
             )
 
-        mock_st.sidebar.radio.assert_called_once()
-        radio_call = mock_st.sidebar.radio.call_args
-        assert radio_call.kwargs["label"] == "Choose QC task"
+        radio_calls = [c for c in mock_st.sidebar.radio.call_args_list if c.kwargs.get("label") == "Choose QC task"]
+        assert len(radio_calls) == 1
+        radio_call = radio_calls[0]
         assert radio_call.kwargs["options"] == ["anat_wf_qc", "func_wf_qc"]
         assert radio_call.kwargs["index"] == 0
 
