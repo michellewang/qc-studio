@@ -17,7 +17,6 @@ from constants import (
     SUCCESS_MESSAGES,
     INFO_MESSAGES,
     QC_RATINGS,
-    NIIVUE_SECONDARY_RATIO,
     VIEW_MODES,
     OVERLAY_COLORMAPS,
     RATING_FACET_COLUMNS,
@@ -25,7 +24,6 @@ from constants import (
 )
 from utils.data_loaders import load_montage_data as _load_montage_data_uncached
 from utils.config import parse_qc_config
-from utils.cohort import compact_session_label
 from utils.navigation import request_navigation_rerun
 from utils.export import build_qc_results_dataframe, save_qc_results_to_csv, normalize_note_value
 from managers.niivue_viewer_manager import NiivueViewerManager, NiivueViewerConfig

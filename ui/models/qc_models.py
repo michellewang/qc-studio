@@ -3,7 +3,7 @@
 Defines all Pydantic models used throughout QC-Studio.
 """
 
-from datetime import datetime, date
+from datetime import date
 from typing import List, Optional, Dict
 from pathlib import Path
 
@@ -12,7 +12,7 @@ try:
 except ImportError:
     from typing_extensions import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator
+from pydantic import BaseModel, Field, RootModel, field_validator
 
 from constants import MAX_MONTAGE_GRID_SIZE, MIN_MONTAGE_GRID_SIZE, QC_RATINGS
 

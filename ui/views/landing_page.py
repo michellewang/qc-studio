@@ -14,7 +14,6 @@ from constants import (
     ERROR_MESSAGES,
     SUCCESS_MESSAGES,
     INFO_MESSAGES,
-    MONTAGE_HEIGHT,
     MIN_MONTAGE_GRID_SIZE,
     MAX_MONTAGE_GRID_SIZE,
     QC_DEDUP_KEYS,
@@ -411,7 +410,6 @@ def show_landing_page(
         normalized_ids = [_normalize_participant_id(pid) for pid in raw_ids]
         total_participants_in_ds = len(set(normalized_ids))
         participant_ids_in_ds = set(normalized_ids)
-        participant_ids_ordered = normalized_ids
         if qc_cohort is None:
             qc_cohort = build_qc_cohort(participants_df, session_ids or ["ses-01"])
         total_cohort_pages = len(qc_cohort)

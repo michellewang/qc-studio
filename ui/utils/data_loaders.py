@@ -10,7 +10,7 @@ import pandas as pd
 
 from pathlib import Path
 
-from typing import Optional, Dict, List, Union, Tuple
+from typing import Optional, Union, Tuple
 
 from constants import NIIVUE_MAX_FILE_BYTES
 
