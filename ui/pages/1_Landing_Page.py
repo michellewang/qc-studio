@@ -13,6 +13,9 @@ from views.landing_page import show_landing_page
 st.set_page_config(layout="wide")
 ctx = get_cli_run_context()
 SessionManager.init_session_state()
+if ctx.get("rater_id"):
+    SessionManager.set_rater_id(ctx["rater_id"])
+    SessionManager.set_rater_id_display(ctx["rater_id"])
 SessionManager.compact_duplicate_qc_records_if_needed()
 show_landing_page(
     ctx["qc_pipeline"],

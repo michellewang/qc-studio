@@ -20,6 +20,24 @@ def normalize_note_value(value):
     return text.strip()
 
 
+def _normalize_screen_size_label(value):
+    """Compatibility helper: convert range-based choices to the display labels used in exports."""
+    if value is None or pd.isna(value):
+        return ""
+    text = str(value).strip()
+    if not text:
+        return ""
+    mapping = {
+        "14 or less": "Laptop (13 inch)",
+        "15-20": "Laptop (17 inch)",
+        "21-25": "Monitor (24 inch)",
+        "26-30": "Desktop (27 inch)",
+        "31 or above": "Large desktop display (32 inch)",
+        "Unknown": "Unknown",
+    }
+    return mapping.get(text, text)
+
+
 def save_qc_results_to_csv(out_file, qc_records, drop_duplicates=True):
     """Save QC results from Streamlit session state to a CSV file.
 
@@ -75,11 +93,11 @@ def save_qc_results_to_csv(out_file, qc_records, drop_duplicates=True):
             "rater_id": rec_dict.get("rater_id"),
             "rater_experience": rec_dict.get("rater_experience"),
             "rater_fatigue": rec_dict.get("rater_fatigue"),
-            "rater_screen_size": rec_dict.get("rater_screen_size"),
+            "rater_screen_size": _normalize_screen_size_label(rec_dict.get("rater_screen_size")),
             "final_qc": rec_dict.get("final_qc"),
             "facet": pd.NA,
             "rating_value": pd.NA,
-            "notes": rec_dict.get("notes"),
+            "notes": normalize_note_value(rec_dict.get("notes")),
         }
         ratings = rec_dict.get("ratings")
         if isinstance(ratings, dict) and ratings:

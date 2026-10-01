@@ -20,6 +20,7 @@ from constants import (
     NIIVUE_SECONDARY_RATIO,
     VIEW_MODES,
     OVERLAY_COLORMAPS,
+    RATING_FACET_COLUMNS,
 )
 from utils.data_loaders import load_montage_data as _load_montage_data_uncached
 from utils.config import parse_qc_config
@@ -56,6 +57,21 @@ def _clean_filename(filename: str) -> str:
     if "sub-" in clean:
         clean = re.sub(r"^.*sub-[^_]+_", "", clean)
     return clean or filename
+
+
+def _unique_montage_tab_names(image_keys: list[str]) -> list[str]:
+    """Ensure each montage tab label is unique even when several image keys normalize to the same cleaned basename."""
+    labels: list[str] = []
+    counts: dict[str, int] = {}
+    for key in image_keys:
+        label = _clean_filename(key)
+        count = counts.get(label, 0)
+        counts[label] = count + 1
+        if count == 0:
+            labels.append(label)
+        else:
+            labels.append(f"{label} ({count + 1})")
+    return labels
 
 
 def try_autoplay_advance_if_due(
@@ -305,6 +321,7 @@ def _display_niivue_with_secondary_panel(
 
     # Left column: Niivue viewer with hidden controls at bottom
     with viewer_col:
+        st.caption(MESSAGES["niivue_header"])
         # Get niivue config from session state or render_controls_panel
         niivue_config = _get_or_render_niivue_config(
             task_suffix,
@@ -348,6 +365,8 @@ def _display_niivue_full_width(dataset_dir, qc_config, participant_id: str = Non
         task_suffix,
         has_overlay=bool(qc_config.get("overlay_mri_image_path")),
     )
+
+    st.subheader(MESSAGES["niivue_header"])
 
     # Render viewer at top
     NiivueViewerManager.render_viewer(dataset_dir, qc_config, niivue_config, participant_id, session_id, task_suffix=task_suffix)
@@ -395,7 +414,7 @@ def _display_montage_panel(dataset_dir, qc_config) -> None:
             dataset_dir: Root dataset directory
             qc_config: QC configuration object
     """
-    # st.header(MESSAGES["montage_header"])
+    st.caption(MESSAGES["montage_header"])
 
     # Get montage grid settings from session manager
     max_montage_rows = SessionManager.get_montage_max_rows()
@@ -404,18 +423,29 @@ def _display_montage_panel(dataset_dir, qc_config) -> None:
     image_data = _load_montage_data_cached(dataset_dir, qc_config, max_montage_rows, max_montage_cols)
 
     if image_data:
-        # If multiple images, create tabs
-        if len(image_data) > 1:
-            # temp fix for tab names
-            tab_names = ["montage"] + [f"Image {i+1}" for i in range(len(image_data) - 1)]
-            # tab_names = [_clean_filename(f) for f in image_data.keys()]
+        ordered_items = list(image_data.items())
+        if len(image_data) > 1 and "montage" in image_data:
+            overview_entry = ("montage", image_data["montage"])
+            individual_entries = [(key, value) for key, value in ordered_items if key != "montage"]
+            ordered_items = [overview_entry, *individual_entries]
+
+        if len(ordered_items) > 1:
+            tab_names = []
+            iter_items = ordered_items
+            if "montage" in image_data:
+                tab_names.append("Overview")
+                iter_items = [("montage", image_data["montage"])] + [item for item in ordered_items if item[0] != "montage"]
+                remaining_keys = [key for key, _ in iter_items[1:]]
+            else:
+                remaining_keys = [key for key, _ in ordered_items]
+            tab_names.extend(_unique_montage_tab_names(remaining_keys))
             tabs = st.tabs(tab_names)
-            for tab, (filename, data) in zip(tabs, image_data.items()):
+            for tab, (filename, data) in zip(tabs, iter_items):
                 with tab:
                     _render_image(data, filename)
         else:
             # Single image - display directly
-            filename, data = list(image_data.items())[0]
+            filename, data = ordered_items[0]
             _render_image(data, filename)
     else:
         st.info(ERROR_MESSAGES["montage_not_found"])
@@ -481,14 +511,31 @@ def _task_rating_config(rating_config: dict[str, Any] | None) -> dict[str, Any]:
     return {"type": mode, "scale": scale, "facets": facets}
 
 
+def _latest_widget_version_for_task(qc_task: str, prefix: str, fallback: int | None = 0) -> int:
+    """Prefer the newest versioned widget key still resident in session state."""
+    latest = int(fallback or 0)
+    task_prefix = f"{prefix}{qc_task}_"
+    for key in list(st.session_state.keys()):
+        if not isinstance(key, str) or not key.startswith(task_prefix):
+            continue
+        suffix = key[len(task_prefix) :]
+        if not suffix:
+            continue
+        last_token = suffix.rsplit("_", 1)[-1]
+        if last_token.isdigit():
+            latest = max(latest, int(last_token))
+    return latest
+
+
 def _collect_task_rating_payload(qc_task: str, rver: int, rating_config: dict[str, Any] | None) -> tuple[str | None, dict[str, str | None] | None]:
     cfg = _task_rating_config(rating_config)
+    effective_rver = _latest_widget_version_for_task(qc_task, "qc_rating_", rver)
     if cfg["type"] == "single":
-        return st.session_state.get(_rating_widget_key(qc_task, rver)), None
+        return st.session_state.get(_rating_widget_key(qc_task, effective_rver)), None
 
     ratings: dict[str, str | None] = {}
     for facet in cfg["facets"]:
-        ratings[facet] = st.session_state.get(_facet_rating_widget_key(qc_task, facet, rver))
+        ratings[facet] = st.session_state.get(_facet_rating_widget_key(qc_task, facet, effective_rver))
     return None, ratings
 
 
@@ -505,6 +552,9 @@ def _on_rating_change(participant_id, session_id, qc_pipeline, qc_task, rver, nv
 
 def _on_notes_change(participant_id, session_id, qc_pipeline, qc_task, rver, nver, rating_config=None):
     """Same save path as ``_on_rating_change``; named for the notes widget callback."""
+    if SessionManager.is_autoplay_enabled():
+        SessionManager.set_autoplay_enabled(False)
+        SessionManager.set_autoplay_start_time(0.0)
     _on_rating_change(participant_id, session_id, qc_pipeline, qc_task, rver, nver, rating_config)
 
 
@@ -554,22 +604,21 @@ def _display_qc_rating_for_task(
         # Render each facet in its own column, wrapping to new rows as needed
         num_facets = len(cfg["facets"])
 
-        cols_per_row = 4  # Adjust this value to control how many facets per row
-        for i in range(0, num_facets, cols_per_row):
-            cols = st.columns(cols_per_row)
-            for j in range(cols_per_row):
+        for i in range(0, num_facets, RATING_FACET_COLUMNS):
+            cols = st.columns(RATING_FACET_COLUMNS)
+            for j in range(RATING_FACET_COLUMNS):
                 if i + j < num_facets:
                     facet = cfg["facets"][i + j]
                     options = cfg["scale"]
 
-                    print(f"Existing ratings for task '{qc_task}': {existing_ratings}")
+                    # print(f"Existing ratings for task '{qc_task}': {existing_ratings}")
 
                     if not existing_ratings:
                         facet_initial = options[0]  # Default to the first option if no existing ratings
                     else:
                         facet_initial = existing_ratings.get(facet)
 
-                    print(f"Rendering facet '{facet}' with initial value '{facet_initial}' and options {options}")
+                    # print(f"Rendering facet '{facet}' with initial value '{facet_initial}' and options {options}")
 
                     with cols[j]:
                         st.radio(
@@ -598,7 +647,8 @@ def _record_all_qc_tasks(participant_id: str, session_id: str, qc_pipeline: str,
     for t in qc_tasks:
         rating_cfg = rating_cfg_by_task.get(t)
         rating, ratings = _collect_task_rating_payload(t, rver, rating_cfg)
-        notes = st.session_state.get(_notes_widget_key(t, nver), "")
+        latest_nver = _latest_widget_version_for_task(t, "qc_notes_", nver)
+        notes = st.session_state.get(_notes_widget_key(t, latest_nver), "")
         _record_qc_for_current_participant(participant_id, session_id, qc_pipeline, t, rating, notes, ratings=ratings)
 
 

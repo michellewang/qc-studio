@@ -26,6 +26,7 @@ from components.qc_viewer import (
 )
 from managers.session_manager import SessionManager
 from models import QCRecord
+from utils.data_loaders import _build_montage_display_data
 
 pytestmark = pytest.mark.unit
 
@@ -86,6 +87,83 @@ class TestCleanFilename:
         """Fallback path should remove synthetic image-type suffixes."""
         filename = "summary_plot_png"
         assert _clean_filename(filename) == "summary_plot"
+
+    def test_display_montage_panel_uses_clean_image_tabs(self, monkeypatch):
+        """Multi-image montages should render one tab per configured image labeled by the cleaned filename."""
+        fake_tabs = [MagicMock(), MagicMock(), MagicMock()]
+        with (
+            patch.object(qc_viewer_module.st, "tabs", return_value=fake_tabs) as mock_tabs,
+            patch.object(
+                qc_viewer_module,
+                "_load_montage_data_cached",
+                return_value={
+                    "figures_sub-CMH0001_ses-01_task-rest_run-01_svg": {"type": "svg", "content": "<svg></svg>"},
+                    "images_sub-CMH0001_overlay_png": {"type": "png", "content": MagicMock()},
+                    "summary_plot_png": {"type": "png", "content": MagicMock()},
+                },
+            ),
+            patch.object(qc_viewer_module.st, "header"),
+            patch.object(qc_viewer_module, "_render_image") as mock_render,
+        ):
+            qc_viewer_module._display_montage_panel("/tmp", {"montage_path": ["a", "b", "c"]})
+
+        assert mock_tabs.call_args.args[0] == [
+            "ses-01_task-rest_run-01",
+            "overlay",
+            "summary_plot",
+        ]
+        assert mock_render.call_count == 3
+
+    def test_unique_montage_tab_names_disambiguate_collisions(self):
+        """Different montage files with the same cleaned basename should still get unique visible tab names."""
+        keys = [
+            "screenshots_sub-CMH0001_sub-CMH0001_png",
+            "skullstrip_sub-CMH0001_sub-CMH0001_png",
+            "surfaces_sub-CMH0001_sub-CMH0001_png",
+        ]
+        assert qc_viewer_module._unique_montage_tab_names(keys) == [
+            "sub-CMH0001",
+            "sub-CMH0001 (2)",
+            "sub-CMH0001 (3)",
+        ]
+
+    def test_build_montage_display_data_keeps_combined_and_individual_tabs(self, tmp_path):
+        """The loader should add a combined montage grid first while preserving one tab per original image."""
+        img_a = tmp_path / "a.png"
+        img_a.write_bytes(b"fake")
+        img_b = tmp_path / "b.png"
+        img_b.write_bytes(b"fake")
+
+        with (
+            patch("utils.data_loaders._load_image_from_file", side_effect=lambda p, dpi=96: MagicMock()),
+            patch("utils.image_processing.create_grid_montage", return_value=MagicMock()),
+        ):
+            result = _build_montage_display_data((str(img_a), str(img_b)))
+
+        assert list(result.keys())[0] == "montage"
+        assert len(result) == 3
+        assert "montage" in result
+        assert any(key.endswith("_a_png") for key in result)
+        assert any(key.endswith("_b_png") for key in result)
+
+    def test_display_montage_panel_uses_overview_first_tab_when_combined_montage_exists(self):
+        """The overview grid should appear as an explicit first tab before the per-image views."""
+        fake_tabs = [MagicMock(), MagicMock(), MagicMock()]
+        image_data = {
+            "montage": {"type": "png", "content": MagicMock()},
+            "surfaces_sub-ED01_lh.pial.superior_png": {"type": "png", "content": MagicMock()},
+            "surfaces_sub-ED01_lh.pial.inferior_png": {"type": "png", "content": MagicMock()},
+        }
+        with (
+            patch.object(qc_viewer_module.st, "tabs", return_value=fake_tabs) as mock_tabs,
+            patch.object(qc_viewer_module, "_load_montage_data_cached", return_value=image_data),
+            patch.object(qc_viewer_module.st, "header"),
+            patch.object(qc_viewer_module, "_render_image") as mock_render,
+        ):
+            qc_viewer_module._display_montage_panel("/tmp", {"montage_path": ["a", "b", "c"]})
+
+        assert mock_tabs.call_args.args[0][0] == "Overview"
+        assert mock_render.call_count == 3
 
 
 # critical

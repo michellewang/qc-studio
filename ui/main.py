@@ -77,6 +77,13 @@ def parse_args(args=None):
         help=("Path to a JSON containing a list of image file paths to be displayed."),
         required=True,
     )
+    parser.add_argument(
+        "--rater_id",
+        dest="rater_id",
+        help=("Optional rater name or ID to pre-populate the landing-page form and greeting."),
+        required=False,
+        default=None,
+    )
 
     return parser.parse_args(args)
 
@@ -132,6 +139,7 @@ def get_cli_run_context():
         "drop_duplicates": True,
         "participant_ids": participant_ids,
         "qc_cohort": qc_cohort,
+        "rater_id": getattr(args, "rater_id", None),
     }
 
 
@@ -151,6 +159,12 @@ def main():
 
     # Initialize session state
     SessionManager.init_session_state()
+    if ctx.get("rater_id"):
+        SessionManager.set_rater_id(ctx["rater_id"])
+    selected_qc_task = SessionManager.get_selected_qc_task()
+    if selected_qc_task:
+        qc_task = selected_qc_task
+        qc_tasks = resolve_qc_tasks(selected_qc_task, qc_config_path)
     if not SessionManager.get_qc_session_id():
         SessionManager.set_qc_session_id(datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"))
     qc_session_label = f"{SessionManager.get_rater_id() or 'rater'}_{qc_pipeline.lower()}_{('all_tasks' if str(qc_task).strip().lower() == 'all' else str(qc_task).strip().lower() or 'unknown_task')}_{SessionManager.get_qc_session_id()}"
@@ -163,7 +177,10 @@ def main():
     SessionManager.compact_duplicate_qc_records_if_needed()
 
     session_id_for_sidebar = qc_cohort[0]["session_id"] if qc_cohort else None
-    qc_tasks = ctx["qc_tasks"]
+    if selected_qc_task:
+        qc_tasks = resolve_qc_tasks(selected_qc_task, qc_config_path)
+    else:
+        qc_tasks = ctx["qc_tasks"]
 
     current_page = st.session_state.get(SESSION_KEYS["current_page"], 1)
     if current_page < 1:

@@ -22,6 +22,7 @@ class SessionManager:
             SESSION_KEYS["batch_size"]: 1,
             SESSION_KEYS["qc_records"]: [],
             SESSION_KEYS["rater_id"]: "",
+            SESSION_KEYS["rater_id_display"]: "",
             SESSION_KEYS["rater_experience"]: None,
             SESSION_KEYS["rater_fatigue"]: None,
             SESSION_KEYS["rater_screen_size"]: None,
@@ -31,6 +32,7 @@ class SessionManager:
             SESSION_KEYS["participant_order"]: [],
             SESSION_KEYS["qc_cohort_order"]: [],
             SESSION_KEYS["landing_page_complete"]: False,
+            SESSION_KEYS["selected_qc_task"]: "",
             SESSION_KEYS["selected_panels"]: DEFAULT_PANELS.copy(),
             SESSION_KEYS["montage_max_rows"]: DEFAULT_MONTAGE_MAX_ROWS,
             SESSION_KEYS["montage_max_cols"]: DEFAULT_MONTAGE_MAX_COLS,
@@ -54,14 +56,27 @@ class SessionManager:
     # Rater Information Methods
     @staticmethod
     def get_rater_id() -> str:
-        """Get current rater ID."""
-        return st.session_state.get(SESSION_KEYS["rater_id"], "")
+        """Get current normalized rater ID for filenames and exports."""
+        value = st.session_state.get(SESSION_KEYS["rater_id"], "")
+        return value.strip().lower() if isinstance(value, str) else ""
+
+    @staticmethod
+    def get_rater_id_display() -> str:
+        """Get the user-facing rater ID as originally entered."""
+        value = st.session_state.get(SESSION_KEYS["rater_id_display"], "")
+        return str(value or SessionManager.get_rater_id()).strip()
 
     @staticmethod
     def set_rater_id(rater_id: str):
-        """Set rater ID."""
+        """Set normalized rater ID for filenames and exports."""
         clean_rater_id = str(rater_id or "").strip().lower()
         st.session_state[SESSION_KEYS["rater_id"]] = clean_rater_id
+        st.session_state[SESSION_KEYS["rater_id_display"]] = str(rater_id or "").strip()
+
+    @staticmethod
+    def set_rater_id_display(rater_id: str):
+        """Set the exact user-facing rater ID shown in the UI."""
+        st.session_state[SESSION_KEYS["rater_id_display"]] = str(rater_id or "").strip()
 
     @staticmethod
     def get_qc_session_id() -> str:
@@ -132,6 +147,18 @@ class SessionManager:
     def set_rater_screen_size(screen_size: str):
         """Set rater monitor screen size."""
         st.session_state[SESSION_KEYS["rater_screen_size"]] = screen_size
+
+    # QC task selection methods
+    @staticmethod
+    def get_selected_qc_task() -> str:
+        """Get the currently selected landing-page QC task."""
+        value = st.session_state.get(SESSION_KEYS["selected_qc_task"], "")
+        return value.strip() if isinstance(value, str) else ""
+
+    @staticmethod
+    def set_selected_qc_task(qc_task: str):
+        """Persist the landing-page QC task selection for the current session."""
+        st.session_state[SESSION_KEYS["selected_qc_task"]] = str(qc_task or "").strip()
 
     # Panel Selection Methods
     @staticmethod

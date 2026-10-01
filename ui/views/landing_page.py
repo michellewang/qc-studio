@@ -119,26 +119,21 @@ def _qc_task_display_labels(qc_config_path: str, task_keys: list[str]) -> list[s
     return labels
 
 
+def _landing_qc_task_options(qc_config_path: str, fallback_qc_task: str | None = None) -> list[str]:
+    """Return all QC tasks defined in qc.json, or a fallback of the current task when unavailable."""
+    tasks = list_qc_tasks_from_json(qc_config_path)
+    if tasks:
+        return tasks
+    fallback = str(fallback_qc_task or "").strip()
+    return [fallback] if fallback else []
+
+
 def _landing_run_summary_lines(
     qc_pipeline: str,
-    task_labels: list[str],
     n_subjects: int,
-    n_pages: int,
-    *,
-    all_tasks: bool = False,
 ) -> str:
-    """Summary lines: pipeline title, then task summary and cohort size."""
-    labels = [str(label).strip() for label in task_labels if str(label).strip()]
-    if all_tasks or len(labels) > 1:
-        n = len(labels)
-        task_word = "task" if n == 1 else "tasks"
-        task_part = f"**Task:** all tasks ({n} {task_word})"
-    elif len(labels) == 1:
-        task_part = f"**Task:** {labels[0]}"
-    else:
-        task_part = "**Task:** —"
-    summary_line = f"Pipeline: {qc_pipeline} | {task_part} | **N_Subjects:** {n_subjects} "
-    return summary_line
+    """Return the landing-page summary line, showing only the pipeline and participant count."""
+    return f"Pipeline: {qc_pipeline} | **Subjects:** {n_subjects}"
 
 
 def show_landing_page(
@@ -166,7 +161,36 @@ def show_landing_page(
                     uses ``st.switch_page`` so the multipage sidebar hands off to the real app entrypoint.
                     Omit when the host is already ``main`` / ``app`` (normal ``st.rerun()``).
     """
-    st.title(MESSAGES["welcome_title"])
+    rater_id = SessionManager.get_rater_id_display()
+    greeting = f"Hoi {rater_id}!" if rater_id else ""
+    welcome_markdown = f"# :orange[{greeting}] {MESSAGES['welcome_title']}" if greeting else f"# {MESSAGES['welcome_title']}"
+    st.markdown(welcome_markdown)
+
+    available_qc_tasks = _landing_qc_task_options(qc_config_path, qc_task)
+    if available_qc_tasks:
+        current_selection = SessionManager.get_selected_qc_task()
+        if current_selection in available_qc_tasks:
+            selected_task = current_selection
+        elif str(qc_task).strip() in available_qc_tasks:
+            selected_task = str(qc_task).strip()
+        else:
+            selected_task = available_qc_tasks[0]
+        SessionManager.set_selected_qc_task(selected_task)
+        st.sidebar.subheader("QC tasks from the qc.json")
+        radio_value = st.sidebar.radio(
+            label="Choose QC task",
+            options=available_qc_tasks,
+            index=available_qc_tasks.index(selected_task),
+            key="landing_page_qc_task_radio",
+        )
+        if isinstance(radio_value, str) and radio_value in available_qc_tasks:
+            selected_task = radio_value
+        else:
+            selected_task = available_qc_tasks[available_qc_tasks.index(selected_task)]
+        SessionManager.set_selected_qc_task(selected_task)
+        qc_task = selected_task
+    else:
+        SessionManager.set_selected_qc_task("")
 
     # Load participant list to get total unique participants
     try:
@@ -186,18 +210,8 @@ def show_landing_page(
     if raw_ids:
         _maybe_apply_montage_defaults_from_qc_json(qc_config_path, qc_task, raw_ids[0])
 
-    qc_tasks_for_page = _upload_qc_task_filter_keys(qc_task, qc_config_path) or []
-    task_keys = qc_tasks_for_page if qc_tasks_for_page else [str(qc_task).strip()]
-    task_labels = _qc_task_display_labels(qc_config_path, task_keys)
-    summary_line = _landing_run_summary_lines(
-        qc_pipeline,
-        task_labels,
-        total_participants_in_ds,
-        total_cohort_pages,
-        all_tasks=str(qc_task).strip().lower() == "all",
-    )
+    summary_line = _landing_run_summary_lines(qc_pipeline, total_participants_in_ds)
     st.subheader(summary_line)
-
     st.markdown("---")
 
     # Three-column layout for rater info, panel selection, and CSV upload
@@ -234,9 +248,10 @@ def _display_rater_form(entrypoint_rel_path: str | None = None) -> None:
     st.subheader(MESSAGES["rater_info_header"])
     with st.form("rater_form"):
         # Rater name/ID
-        rater_id = st.text_input(MESSAGES["rater_id_prompt"], value=SessionManager.get_rater_id())
+        rater_id = st.text_input(MESSAGES["rater_id_prompt"], value=SessionManager.get_rater_id_display())
 
-        # Remove spaces and normalize to lowercase so exported filenames do not collide by case.
+        # Keep the exact display value for the landing-page greeting and form, while
+        # still normalizing for filename safety when the session is exported.
         rater_id_clean = "".join(rater_id.split()).lower()
 
         # Experience level
@@ -271,6 +286,7 @@ def _display_rater_form(entrypoint_rel_path: str | None = None) -> None:
                 st.error(ERROR_MESSAGES["no_panel_selected"])
             else:
                 SessionManager.set_rater_id(rater_id_clean)
+                SessionManager.set_rater_id_display(rater_id)
                 SessionManager.set_rater_experience(rater_experience)
                 SessionManager.set_rater_fatigue(rater_fatigue)
                 SessionManager.set_rater_screen_size(rater_screen_size)

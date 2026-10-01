@@ -246,11 +246,11 @@ class TestLoadMontageData:
 
         assert result is not None
         assert isinstance(result, dict)
-        assert len(result) >= 2
+        assert len(result) in {2, 3}
         if "montage" in result:
-            assert result["montage"]["type"] == "png"
+            assert list(result.keys())[0] == "montage"
 
-        # Check that Montage files are loaded with correct type.
+        # Check that each configured montage file stays as its own tab when conversion is available.
         for filename, data in result.items():
             if filename == "montage":
                 continue
@@ -275,11 +275,11 @@ class TestLoadMontageData:
 
         assert result is not None
         assert isinstance(result, dict)
-        assert len(result) >= 2
+        assert len(result) in {2, 3}
         if "montage" in result:
-            assert result["montage"]["type"] == "png"
+            assert list(result.keys())[0] == "montage"
 
-        # Verify we have one SVG and one PNG in addition to montage.
+        # Verify the configured image types remain present.
         types = [data["type"] for key, data in result.items() if key != "montage"]
         assert "svg" in types
         assert "png" in types
@@ -301,7 +301,15 @@ class TestLoadMontageData:
         assert isinstance(result, dict)
         assert len(result) == 3
         assert "montage" in result
-        assert result["montage"]["type"] == "png"
+
+    def test_fsqc_volume_montage_uses_all_available_sample_images(self):
+        """The sample FSQC volume task should reference all three real montage files in the sample dataset."""
+        qc_path = Path(__file__).resolve().parents[2] / "pipelines" / "fsqc" / "qc.json"
+        cfg = parse_qc_config(str(qc_path), "FS_volume_workflow", {"participant_id": "sub-ED01", "session_id": "ses-01"})
+
+        assert cfg["montage_path"] is not None
+        assert len(cfg["montage_path"]) == 3
+        assert all((Path("sample_data") / path).is_file() for path in cfg["montage_path"])
 
     def test_load_jpeg_file(self, temp_dir):
         """Test loading JPEG file."""
