@@ -7,7 +7,7 @@ output_dir="/data/qc-datasets/ppmi-sandbox/qc-output/test-user-0"
 pipeline_script="main.py"
 port_number="8501"
 session_list="ses-BL"
-rater_id="Eva"
+rater_id="odysseus"
 
 streamlit run $pipeline_script --server.port=$port_number -- \
   --qc_json $qc_json \

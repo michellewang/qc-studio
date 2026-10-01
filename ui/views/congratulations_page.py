@@ -1,8 +1,9 @@
 """Congratulations page component for QC-Studio UI."""
 
 from pathlib import Path
+import pandas as pd
 import streamlit as st
-from constants import MESSAGES, SUCCESS_MESSAGES, INFO_MESSAGES, SESSION_KEYS, QC_RATINGS
+from constants import MESSAGES, SUCCESS_MESSAGES, INFO_MESSAGES
 from managers.session_manager import SessionManager
 from utils.export import save_qc_results_to_csv
 
@@ -306,40 +307,69 @@ def _display_session_summary(
 
     with col2:
         st.subheader("QC Results Summary")
+        if not record_list:
+            st.info("No QC records available yet.")
+            return
 
-        # Count final_qc values
-        if record_list:
-            # check if single of multi-facet ratings
-            if hasattr(record_list[0], "ratings") and isinstance(record_list[0].ratings, dict):
-                st.write("**Multi-facet ratings:**")
-                facet_counts = {}
-                for record in record_list:
-                    ratings_map = record.ratings if hasattr(record, "ratings") else record.get("ratings", None)
-                    if isinstance(ratings_map, dict) and ratings_map:
-                        for facet, value in ratings_map.items():
-                            facet_counts.setdefault(facet, {}).setdefault(value, 0)
-                            facet_counts[facet][value] += 1
+        subject_counts: dict[str, int] = {}
+        facet_counts_by_name: dict[str, dict[str, int]] = {}
+        has_multifacet = False
 
-                for facet, counts in facet_counts.items():
-                    # st.write(f"**{facet}:**")
-                    # Build a string of ratings and counts for this facet
-                    # And display in a single line
-                    rating_strings = [f"**{facet}:**"] + [f"{rating}: {count}" for rating, count in sorted(counts.items())]
-                    st.write(f"- {' '.join(rating_strings)}")
+        def _count_bucket(value: str) -> str:
+            text = str(value or "").strip()
+            return text if text else "Unrated"
 
-            else:
-                st.write("**Single-scale ratings:**")
+        for record in record_list:
+            final_qc = record.final_qc if hasattr(record, "final_qc") else record.get("final_qc", "")
+            ratings_map = record.ratings if hasattr(record, "ratings") else record.get("ratings", None)
 
-                final_qc_counts = {}
-                for record in record_list:
-                    qc_value = record.final_qc
-                    if qc_value not in QC_RATINGS:
-                        final_qc_counts["Unrated"] = final_qc_counts.get("Unrated", 0) + 1
-                    else:
-                        final_qc_counts[qc_value] = final_qc_counts.get(qc_value, 0) + 1
+            if isinstance(ratings_map, dict) and ratings_map:
+                has_multifacet = True
+                for facet, value in ratings_map.items():
+                    facet_name = str(facet).strip() or "(unknown facet)"
+                    bucket = _count_bucket(value)
+                    facet_counts_by_name.setdefault(facet_name, {})
+                    facet_counts_by_name[facet_name][bucket] = facet_counts_by_name[facet_name].get(bucket, 0) + 1
 
-                for qc_status, count in sorted(final_qc_counts.items()):
-                    st.write(f"**{qc_status}:** {count}")
+            status = str(final_qc).strip()
+            if status.lower() in {"", "none", "nan"} and isinstance(ratings_map, dict):
+                status = SessionManager.derive_multifacet_final_qc(ratings_map) or ""
+            if status.lower() in {"", "none", "nan"}:
+                status = "Unrated"
+            subject_counts[status] = subject_counts.get(status, 0) + 1
+
+        st.write("**Subject-level stats:**")
+        subject_preferred_cols = ["PASS", "FAIL", "UNCERTAIN", "All-Pass", "All-Fail", "Partial-Pass", "Unrated"]
+        subject_present_cols = [c for c in subject_counts.keys() if c not in subject_preferred_cols]
+        subject_cols = [c for c in subject_preferred_cols if c in subject_counts] + sorted(subject_present_cols)
+        if not subject_cols:
+            subject_cols = ["Unrated"]
+        subject_table = pd.DataFrame(
+            [{col: int(subject_counts.get(col, 0)) for col in subject_cols}],
+            index=["Count"],
+        )
+        st.table(subject_table)
+
+        if has_multifacet and facet_counts_by_name:
+            st.write("**Facet-level stats:**")
+            facet_preferred_cols = ["PASS", "FAIL", "UNCERTAIN", "Unrated"]
+            facet_seen_cols: set[str] = set()
+            for counts in facet_counts_by_name.values():
+                facet_seen_cols.update(counts.keys())
+            facet_extra_cols = sorted([c for c in facet_seen_cols if c not in facet_preferred_cols])
+            facet_cols = [c for c in facet_preferred_cols if c in facet_seen_cols] + facet_extra_cols
+            if not facet_cols:
+                facet_cols = ["Unrated"]
+
+            facet_rows: list[dict[str, int | str]] = []
+            for facet_name in sorted(facet_counts_by_name.keys()):
+                counts = facet_counts_by_name[facet_name]
+                row = {"Facet": facet_name}
+                for col in facet_cols:
+                    row[col] = int(counts.get(col, 0))
+                facet_rows.append(row)
+            facet_table = pd.DataFrame(facet_rows)
+            st.table(facet_table)
 
 
 def _export_qc_results(

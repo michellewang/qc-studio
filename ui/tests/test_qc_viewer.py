@@ -363,7 +363,7 @@ class TestOnRatingChange:
         )
 
         saved = SessionManager.get_qc_record_for_participant("sub-CMH0001", "ses-01", "FS_volume_wf_qc")
-        assert saved.final_qc is None
+        assert saved.final_qc == "Partial-Pass"
         assert saved.ratings == {
             "frontal": "PASS",
             "parietal": "FAIL",

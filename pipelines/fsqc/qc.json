@@ -9,7 +9,7 @@
         "rating": {
             "type": "multi",
             "scale": ["PASS", "FAIL", "UNCERTAIN"],
-            "facets": ["Motion", "Aliasing", "Susceptibility", "Ringing", "Inhomogeneity"]
+            "facets": ["Cropped", "Aliasing", "Motion", "Susceptibility", "Ringing", "Inhomogeneity"]
         }
     },
     "FS_volume_workflow": {

@@ -1,5 +1,7 @@
 """Landing page component for QC-Studio UI."""
 
+from pathlib import Path
+
 import pandas as pd
 import streamlit as st
 from constants import (
@@ -136,6 +138,206 @@ def _landing_run_summary_lines(
     return f"Pipeline: {qc_pipeline} | **Subjects:** {n_subjects}"
 
 
+def _list_resume_files(out_dir: str) -> tuple[Path | None, list[Path]]:
+    """Find status/checkpoint TSV files under the run output directory."""
+    base_dir = Path(str(out_dir).strip()).expanduser() if out_dir and str(out_dir).strip() else None
+    if base_dir is None:
+        return None, []
+
+    try:
+        resolved_base = base_dir.resolve()
+    except OSError:
+        return None, []
+    if not resolved_base.exists() or not resolved_base.is_dir():
+        return resolved_base, []
+
+    seen: set[Path] = set()
+    candidates: list[Path] = []
+    patterns = ["*_qc_status.tsv", "*_status.tsv"]
+    for pattern in patterns:
+        for path in resolved_base.glob(pattern):
+            if path.is_file() and path not in seen:
+                seen.add(path)
+                candidates.append(path)
+
+    checkpoint_dir = resolved_base / "checkpoints"
+    if checkpoint_dir.exists() and checkpoint_dir.is_dir():
+        for path in checkpoint_dir.glob("*.tsv"):
+            if path.is_file() and path not in seen:
+                seen.add(path)
+                candidates.append(path)
+
+    candidates.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0.0, reverse=True)
+    return resolved_base, candidates
+
+
+def _resume_file_label(base_dir: Path, candidate: Path) -> str:
+    """Human-readable label for local resume files in the select box."""
+    try:
+        rel = candidate.relative_to(base_dir)
+        return str(rel)
+    except ValueError:
+        return str(candidate)
+
+
+def _records_from_df_task(df_task: pd.DataFrame) -> list[QCRecord]:
+    """Convert filtered TSV rows into QCRecord entries for session import."""
+    loaded_records: list[QCRecord] = []
+    has_facets = "facet" in df_task.columns and "rating_value" in df_task.columns and df_task["facet"].notna().any()
+    if has_facets:
+        group_cols = [c for c in ["participant_id", "session_id", "pipeline", "qc_task", "task_id", "run_id"] if c in df_task.columns]
+        for _, group in df_task.groupby(group_cols, dropna=False, sort=False):
+            first_row = group.iloc[0]
+            ratings = {}
+            for _, row in group.iterrows():
+                facet = row.get("facet")
+                value = row.get("rating_value")
+                if pd.notna(facet) and str(facet).strip():
+                    ratings[str(facet).strip()] = str(value).strip() if pd.notna(value) else ""
+
+            final_qc = SessionManager.derive_multifacet_final_qc(ratings)
+            if final_qc is None:
+                final_qc_raw = first_row.get("final_qc", "")
+                final_qc_txt = str(final_qc_raw).strip() if pd.notna(final_qc_raw) else ""
+                final_qc = final_qc_txt if final_qc_txt.lower() not in {"", "none", "nan"} else None
+
+            record = QCRecord(
+                participant_id=str(first_row.get("participant_id", "")),
+                session_id=str(first_row.get("session_id", "")),
+                qc_task=str(first_row.get("qc_task", "")),
+                pipeline=str(first_row.get("pipeline", "")),
+                timestamp=str(first_row.get("timestamp", "")),
+                rater_id=str(first_row.get("rater_id", "")),
+                rater_experience=str(first_row.get("rater_experience", "")),
+                rater_fatigue=str(first_row.get("rater_fatigue", "")),
+                rater_screen_size=str(first_row.get("rater_screen_size", "")),
+                final_qc=final_qc,
+                ratings=ratings,
+                notes=str(first_row.get("notes", "")) if pd.notna(first_row.get("notes")) else "",
+            )
+            loaded_records.append(record)
+    else:
+        for _, row in df_task.iterrows():
+            record = QCRecord(
+                participant_id=str(row.get("participant_id", "")),
+                session_id=str(row.get("session_id", "")),
+                qc_task=str(row.get("qc_task", "")),
+                pipeline=str(row.get("pipeline", "")),
+                timestamp=str(row.get("timestamp", "")),
+                rater_id=str(row.get("rater_id", "")),
+                rater_experience=str(row.get("rater_experience", "")),
+                rater_fatigue=str(row.get("rater_fatigue", "")),
+                rater_screen_size=str(row.get("rater_screen_size", "")),
+                final_qc=str(row.get("final_qc", "")),
+                notes=str(row.get("notes", "")) if pd.notna(row.get("notes")) else "",
+            )
+            loaded_records.append(record)
+    return loaded_records
+
+
+def _show_import_confirmation_dialog(
+    payload_key: str,
+    feedback_key: str,
+    total_cohort_pages: int,
+    qc_cohort: list[dict],
+    qc_tasks: list[str],
+) -> None:
+    """Render a popup preview of parsed TSV rows and require explicit import confirmation."""
+    payload = st.session_state.get(payload_key)
+    if not payload:
+        return
+
+    def _confirm_import_dialog_body() -> None:
+        st.caption(f"Source file: {payload['source_name']} | Current workflow filter: **{payload['filter_label']}**")
+
+        source_df = payload["source_df"]
+        top_left, top_right = st.columns(2)
+        with top_left:
+            if len(source_df) > 0:
+                first_record = source_df.iloc[0]
+                extracted_rater_id = str(first_record.get("rater_id", ""))
+                extracted_experience = str(first_record.get("rater_experience", ""))
+                extracted_fatigue = str(first_record.get("rater_fatigue", ""))
+                extracted_screen_size = str(first_record.get("rater_screen_size", ""))
+                # st.info(INFO_MESSAGES["rater_info_extracted"])
+                st.write(INFO_MESSAGES["rater_id_prefix"].format(id=extracted_rater_id))
+                st.write(INFO_MESSAGES["experience_prefix"].format(exp=extracted_experience))
+                st.write(INFO_MESSAGES["fatigue_prefix"].format(fatigue=extracted_fatigue))
+                st.write(INFO_MESSAGES["screen_size_prefix"].format(size=extracted_screen_size))
+
+        with top_right:
+            col_comp1, col_comp2 = st.columns(2)
+            with col_comp1:
+                st.metric(label="QC pages reviewed", value=payload["pages_reviewed"])
+            with col_comp2:
+                st.metric(label="QC records reviewed", value=payload["records_reviewed"])
+
+            if payload.get("facet_total", 0) > 0:
+                st.metric(label="Facet ratings reviewed", value=f"{payload['facet_reviewed']} / {payload['facet_total']}")
+
+            st.caption(
+                f"Totals: {total_cohort_pages} cohort pages · {payload['total_qc_records']} QC records "
+                "across this workflow. When a page includes multiple tasks, records can exceed pages."
+            )
+            progress_pct = payload["progress_pct"]
+            st.progress(min(progress_pct / 100, 1.0), text=f"{progress_pct:.1f}% of QC records complete")
+
+        if payload["preview_df"].empty:
+            st.warning(
+                f"No records found for workflow **{payload['filter_label']}** in the uploaded file. "
+                f"All {payload['total_rows']} records are for other tasks."
+            )
+        else:
+            st.subheader(INFO_MESSAGES["preview_header"])
+            st.caption(f"Showing records for workflow: **{payload['filter_label']}**")
+            st.dataframe(payload["preview_df"], width="stretch")
+
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+            if st.button("📥 Confirm Import", key="confirm_import_records", width="stretch"):
+                source_df = payload["source_df"]
+                if len(source_df) > 0:
+                    first_record = source_df.iloc[0]
+                    SessionManager.set_rater_id(str(first_record.get("rater_id", "")))
+                    SessionManager.set_rater_experience(str(first_record.get("rater_experience", "")))
+                    SessionManager.set_rater_fatigue(str(first_record.get("rater_fatigue", "")))
+                    SessionManager.set_rater_screen_size(str(first_record.get("rater_screen_size", "")))
+
+                loaded_records = _records_from_df_task(payload["df_task"])
+                SessionManager.set_qc_records(loaded_records)
+                SessionManager.set_qc_cohort_order(qc_cohort)
+                SessionManager.set_participant_ids(participant_ids_in_cohort_order(qc_cohort))
+                if SessionManager.all_qc_cohort_pages_complete_for_tasks(qc_tasks, qc_cohort):
+                    target_page = total_cohort_pages + 1
+                else:
+                    next_page = SessionManager.first_qc_cohort_page_missing_for_tasks(qc_tasks, qc_cohort)
+                    target_page = min(next_page, total_cohort_pages)
+                SessionManager.set_current_page(target_page)
+                st.session_state[feedback_key] = (
+                    SUCCESS_MESSAGES["records_loaded"].format(count=len(loaded_records)),
+                    INFO_MESSAGES["proceed_with_form"],
+                )
+                st.session_state.pop(payload_key, None)
+                st.rerun()
+
+        with col_btn2:
+            if st.button("Cancel", key="cancel_import_records", width="stretch"):
+                st.session_state.pop(payload_key, None)
+                st.rerun()
+
+    dialog_fn = getattr(st, "dialog", None)
+    can_use_dialog = callable(dialog_fn) and "streamlit" in str(getattr(dialog_fn, "__module__", ""))
+    if can_use_dialog:
+
+        @st.dialog("Confirm QC Data Import", width="large")
+        def _confirm_import_dialog() -> None:
+            _confirm_import_dialog_body()
+
+        _confirm_import_dialog()
+    else:
+        _confirm_import_dialog_body()
+
+
 def show_landing_page(
     qc_pipeline,
     qc_task,
@@ -162,8 +364,8 @@ def show_landing_page(
                     Omit when the host is already ``main`` / ``app`` (normal ``st.rerun()``).
     """
     rater_id = SessionManager.get_rater_id_display()
-    greeting = f"Hoi {rater_id}!" if rater_id else ""
-    welcome_markdown = f"# :orange[{greeting}] {MESSAGES['welcome_title']}" if greeting else f"# {MESSAGES['welcome_title']}"
+    greeting = f"Salut {rater_id}!" if rater_id else ""
+    welcome_markdown = f"# :blue[{greeting}] {MESSAGES['welcome_title']}" if greeting else f"# {MESSAGES['welcome_title']}"
     st.markdown(welcome_markdown)
 
     available_qc_tasks = _landing_qc_task_options(qc_config_path, qc_task)
@@ -235,6 +437,7 @@ def show_landing_page(
             qc_cohort,
             qc_task,
             qc_config_path,
+            out_dir,
         )
 
     st.markdown("---")
@@ -303,6 +506,7 @@ def _display_csv_upload(
     qc_cohort: list[dict],
     qc_task: str,
     qc_config_path: str,
+    out_dir: str,
 ) -> None:
     """Render CSV upload section in the landing page.
 
@@ -312,20 +516,61 @@ def _display_csv_upload(
             qc_cohort: Ordered cohort rows for pagination
             qc_task: Current QC task name (used to filter uploaded CSV)
             qc_config_path: Path to qc.json (required when ``qc_task`` is ``all``)
+            out_dir: CLI output directory that may contain saved status/checkpoint files
     """
+    pending_payload_key = "landing_pending_import_payload"
+    import_feedback_key = "landing_import_feedback"
     qc_tasks = _upload_qc_task_filter_keys(qc_task, qc_config_path) or []
     st.subheader(MESSAGES["upload_header"])
     st.info(MESSAGES["upload_help"])
 
+    if import_feedback_key in st.session_state:
+        loaded_msg, proceed_msg = st.session_state.pop(import_feedback_key)
+        st.success(loaded_msg)
+        st.info(proceed_msg)
+
+    selected_local_path: Path | None = None
+    load_selected_local_file = False
+    local_output_dir, local_resume_files = _list_resume_files(out_dir)
+    if local_output_dir and local_resume_files:
+        st.caption(f"Found {len(local_resume_files)} resume file(s) in output directory: {local_output_dir}")
+        file_labels = [_resume_file_label(local_output_dir, p) for p in local_resume_files]
+        selected_label = st.selectbox(
+            "Available checkpoint file (s)",
+            options=["(none)"] + file_labels,
+            index=0,
+            key="qc_local_resume_file_select",
+        )
+        if selected_label != "(none)":
+            selected_index = file_labels.index(selected_label)
+            selected_local_path = local_resume_files[selected_index]
+            load_selected_local_file = st.button("📂 Load Selected Output File", key="load_selected_output_file", width="stretch")
+    elif local_output_dir:
+        st.caption(f"No status/checkpoint TSV files found in output directory: {local_output_dir}")
+
     uploaded_file = st.file_uploader(MESSAGES["csv_uploader_label"], type=UPLOAD_FILE_TYPES, key="qc_file_upload")
+    source_name: str | None = None
+    source_input = None
+    should_review_source = False
 
     if uploaded_file is not None:
+        source_input = uploaded_file
+        source_name = uploaded_file.name
+        should_review_source = pending_payload_key not in st.session_state
+    elif load_selected_local_file and selected_local_path is not None:
+        source_input = selected_local_path
+        source_name = selected_local_path.name
+        should_review_source = True
+
+    if should_review_source and source_input is not None and source_name is not None:
         try:
-            # Read the uploaded file while preserving zero-padded subject IDs.
-            df = pd.read_csv(uploaded_file, sep=None, engine="python", dtype=str)
+            # Read the chosen file while preserving zero-padded subject IDs.
+            df = pd.read_csv(source_input, sep=None, engine="python", dtype=str)
 
             # Deduplicate rows by QC_DEDUP_KEYS (keeping most recent record per participant)
             dedup_cols = [k for k in QC_DEDUP_KEYS if k in df.columns]
+            if "facet" in df.columns:
+                dedup_cols.append("facet")
             if dedup_cols:
                 df[dedup_cols] = df[dedup_cols].astype(str)
                 df = df.drop_duplicates(subset=dedup_cols, keep="last").reset_index(drop=True)
@@ -336,15 +581,32 @@ def _display_csv_upload(
 
             df_task = _filter_uploaded_df_for_qc_task(df, qc_task, qc_config_path)
             filter_label = _upload_filter_label(qc_task, qc_config_path)
+
+            # Guardrail: uploaded records must match the currently selected QC task(s).
+            if "qc_task" in df.columns and df_task.empty and len(df) > 0:
+                uploaded_tasks = sorted({str(t).strip() for t in df["qc_task"].dropna().tolist() if str(t).strip()})
+                expected_tasks = _upload_qc_task_filter_keys(qc_task, qc_config_path) or []
+                uploaded_label = ", ".join(uploaded_tasks) if uploaded_tasks else "(missing qc_task values)"
+                expected_label = ", ".join(expected_tasks) if expected_tasks else str(qc_task)
+                st.error(
+                    "Uploaded file task(s) do not match the selected QC task in the sidebar. "
+                    f"Selected task(s): {expected_label}. Uploaded task(s): {uploaded_label}. "
+                    "Please upload another file or select the matching QC task in the sidebar."
+                )
+                st.stop()
+
             decided = decided_rating_keys_from_df(df_task, qc_tasks)
             pages_reviewed = count_complete_cohort_pages(qc_cohort, qc_tasks, decided)
             records_reviewed = len(decided)
             total_qc_records = len(qc_cohort) * len(qc_tasks) if qc_cohort and qc_tasks else 0
+            facet_mask = df_task.get("facet").astype(str).str.strip().ne("") if "facet" in df_task.columns else pd.Series(False, index=df_task.index)
+            facet_total = int(facet_mask.sum()) if len(df_task) > 0 else 0
+            if "rating_value" in df_task.columns:
+                facet_reviewed = int((facet_mask & df_task["rating_value"].astype(str).str.strip().ne("")).sum())
+            else:
+                facet_reviewed = 0
             participant_ids_in_csv = {str(pid).strip() for pid in df_task["_participant_id_norm"].unique()}
             preview_df = df_task.drop(columns=["_participant_id_norm"], errors="ignore")
-
-            st.success(SUCCESS_MESSAGES["csv_loaded"].format(count=len(df), filename=uploaded_file.name))
-            st.caption(f"Current workflow filter: **{filter_label}**")
 
             # Validate: Check if CSV has participants not in the participant list
             invalid_participants = participant_ids_in_csv - participant_ids_in_ds
@@ -360,122 +622,34 @@ def _display_csv_upload(
                 st.error(f"❌ Error: The uploaded file contains {len(invalid_pairs)} " f"participant/session pair(s) not in this cohort: {pair_text}")
                 st.stop()
 
-            # Load participant list and show comparison
-            try:
-                # Create comparison display
-                col_comp1, col_comp2 = st.columns(2)
-                with col_comp1:
-                    st.metric(label="Cohort pages reviewed", value=pages_reviewed)
-                with col_comp2:
-                    st.metric(label="QC records reviewed", value=records_reviewed)
-                st.caption(
-                    f"Totals: {total_cohort_pages} cohort pages · {total_qc_records} QC records "
-                    f"across this workflow. When a page includes multiple tasks, records can exceed pages."
-                )
-
-                # Progress percentage is based on QC records, which reflects the actual per-task data points.
-                progress_pct = (records_reviewed / total_qc_records) * 100 if total_qc_records > 0 else 0
-                st.progress(min(progress_pct / 100, 1.0), text=f"{progress_pct:.1f}% of QC records complete")
-
-            except Exception as e:
-                st.warning(ERROR_MESSAGES["csv_comparison_error"].format(error=e))
-
-            # Extract rater information from the current-task subset when available.
+            progress_pct = (records_reviewed / total_qc_records) * 100 if total_qc_records > 0 else 0
             source_df = df_task if len(df_task) > 0 else df
-            if len(source_df) > 0:
-                first_record = source_df.iloc[0]
-                extracted_rater_id = str(first_record.get("rater_id", ""))
-                extracted_experience = str(first_record.get("rater_experience", ""))
-                extracted_fatigue = str(first_record.get("rater_fatigue", ""))
-                extracted_screen_size = str(first_record.get("rater_screen_size", ""))
-
-                # Update session state with extracted rater info
-                SessionManager.set_rater_id(extracted_rater_id)
-                SessionManager.set_rater_experience(extracted_experience)
-                SessionManager.set_rater_fatigue(extracted_fatigue)
-                SessionManager.set_rater_screen_size(extracted_screen_size)
-
-                st.info(INFO_MESSAGES["rater_info_extracted"])
-                st.write(INFO_MESSAGES["rater_id_prefix"].format(id=extracted_rater_id))
-                st.write(INFO_MESSAGES["experience_prefix"].format(exp=extracted_experience))
-                st.write(INFO_MESSAGES["fatigue_prefix"].format(fatigue=extracted_fatigue))
-                st.write(INFO_MESSAGES["screen_size_prefix"].format(size=extracted_screen_size))
-
-            # Display preview (filtered to current qc_task)
-            st.subheader(INFO_MESSAGES["preview_header"])
-            if preview_df.empty:
-                st.warning(f"No records found for workflow **{filter_label}** in the uploaded file. " f"All {len(df)} records are for other tasks.")
-            else:
-                st.caption(f"Showing records for workflow: **{filter_label}**")
-                st.dataframe(preview_df.head(10), width="stretch")
-
-            # Option to load these records
-            if st.button(INFO_MESSAGES["load_records_button"], width="stretch"):
-                # Convert dataframe rows to QCRecord objects (current task only)
-                loaded_records = []
-                has_facets = "facet" in df_task.columns and "rating_value" in df_task.columns and df_task["facet"].notna().any()
-                if has_facets:
-                    group_cols = [c for c in ["participant_id", "session_id", "pipeline", "qc_task", "task_id", "run_id"] if c in df_task.columns]
-                    for _, group in df_task.groupby(group_cols, dropna=False, sort=False):
-                        first_row = group.iloc[0]
-                        ratings = {}
-                        for _, row in group.iterrows():
-                            facet = row.get("facet")
-                            value = row.get("rating_value")
-                            if pd.notna(facet) and str(facet).strip():
-                                ratings[str(facet).strip()] = str(value).strip() if pd.notna(value) else ""
-
-                        final_qc_raw = first_row.get("final_qc", "")
-                        final_qc = str(final_qc_raw).strip() if pd.notna(final_qc_raw) else ""
-                        if final_qc.lower() in {"", "none", "nan"}:
-                            final_qc = None
-
-                        record = QCRecord(
-                            participant_id=str(first_row.get("participant_id", "")),
-                            session_id=str(first_row.get("session_id", "")),
-                            qc_task=str(first_row.get("qc_task", "")),
-                            pipeline=str(first_row.get("pipeline", "")),
-                            timestamp=str(first_row.get("timestamp", "")),
-                            rater_id=str(first_row.get("rater_id", "")),
-                            rater_experience=str(first_row.get("rater_experience", "")),
-                            rater_fatigue=str(first_row.get("rater_fatigue", "")),
-                            rater_screen_size=str(first_row.get("rater_screen_size", "")),
-                            final_qc=final_qc,
-                            ratings=ratings,
-                            notes=str(first_row.get("notes", "")) if pd.notna(first_row.get("notes")) else "",
-                        )
-                        loaded_records.append(record)
-                else:
-                    for _, row in df_task.iterrows():
-                        record = QCRecord(
-                            participant_id=str(row.get("participant_id", "")),
-                            session_id=str(row.get("session_id", "")),
-                            qc_task=str(row.get("qc_task", "")),
-                            pipeline=str(row.get("pipeline", "")),
-                            timestamp=str(row.get("timestamp", "")),
-                            rater_id=str(row.get("rater_id", "")),
-                            rater_experience=str(row.get("rater_experience", "")),
-                            rater_fatigue=str(row.get("rater_fatigue", "")),
-                            rater_screen_size=str(row.get("rater_screen_size", "")),
-                            final_qc=str(row.get("final_qc", "")),
-                            notes=str(row.get("notes", "")) if pd.notna(row.get("notes")) else "",
-                        )
-                        loaded_records.append(record)
-
-                SessionManager.set_qc_records(loaded_records)
-                SessionManager.set_qc_cohort_order(qc_cohort)
-                SessionManager.set_participant_ids(participant_ids_in_cohort_order(qc_cohort))
-                if SessionManager.all_qc_cohort_pages_complete_for_tasks(qc_tasks, qc_cohort):
-                    target_page = total_cohort_pages + 1
-                else:
-                    next_page = SessionManager.first_qc_cohort_page_missing_for_tasks(qc_tasks, qc_cohort)
-                    target_page = min(next_page, total_cohort_pages)
-                SessionManager.set_current_page(target_page)
-                st.success(SUCCESS_MESSAGES["records_loaded"].format(count=len(loaded_records)))
-                st.info(INFO_MESSAGES["proceed_with_form"])
+            st.success(SUCCESS_MESSAGES["csv_loaded"].format(count=len(df), filename=source_name))
+            st.session_state[pending_payload_key] = {
+                "source_name": source_name,
+                "filter_label": filter_label,
+                "pages_reviewed": pages_reviewed,
+                "records_reviewed": records_reviewed,
+                "total_qc_records": total_qc_records,
+                "facet_reviewed": facet_reviewed,
+                "facet_total": facet_total,
+                "progress_pct": progress_pct,
+                "total_rows": len(df),
+                "preview_df": preview_df.head(10),
+                "source_df": source_df,
+                "df_task": df_task,
+            }
 
         except Exception as e:
             st.error(ERROR_MESSAGES["file_load_error"].format(error=e))
+
+    _show_import_confirmation_dialog(
+        payload_key=pending_payload_key,
+        feedback_key=import_feedback_key,
+        total_cohort_pages=total_cohort_pages,
+        qc_cohort=qc_cohort,
+        qc_tasks=qc_tasks,
+    )
 
     st.divider()
     st.markdown(

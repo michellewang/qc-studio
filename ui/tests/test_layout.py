@@ -144,7 +144,7 @@ class TestShowLandingPage:
         with _patch_streamlit_for_landing(mock_st):
             SessionManager = __import__("managers.session_manager", fromlist=["SessionManager"]).SessionManager
             SessionManager.set_rater_id("abc123")
-            SessionManager.set_rater_id_display("Eva")
+            SessionManager.set_rater_id_display("odysseus")
             show_landing_page(
                 qc_pipeline="fmriprep",
                 qc_task="anat_wf_qc",
@@ -153,10 +153,10 @@ class TestShowLandingPage:
                 qc_config_path=_stub_qc_config_path(tmp_path),
             )
 
-        mock_st.markdown.assert_any_call("# :orange[Hoi Eva!] Welcome to Nipoppy QC-Studio! 🚀")
+        mock_st.markdown.assert_any_call("# :blue[Salut odysseus!] Welcome to Nipoppy QC-Studio! 🚀")
         rater_call = mock_st.text_input.call_args_list[0]
         assert rater_call.args[0] == "Enter your Rater Name or ID:"
-        assert rater_call.kwargs["value"] == "Eva"
+        assert rater_call.kwargs["value"] == "odysseus"
 
     @patch("views.landing_page.pd.read_csv")
     def test_landing_page_displays_pipeline_info(self, mock_read_csv, tmp_path):
@@ -279,7 +279,7 @@ class TestShowLandingPage:
             )
 
         metric_calls = [call.kwargs for call in mock_st.metric.call_args_list if call.kwargs]
-        assert any(call.get("label") == "Cohort pages reviewed" for call in metric_calls)
+        assert any(call.get("label") == "QC pages reviewed" for call in metric_calls)
         assert any(call.get("label") == "QC records reviewed" for call in metric_calls)
         caption_text = "\n".join(str(call.args[0]) for call in mock_st.caption.call_args_list)
         assert "records can exceed pages" in caption_text

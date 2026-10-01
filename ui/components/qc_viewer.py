@@ -1235,7 +1235,7 @@ def _record_qc_for_current_participant(
         rater_experience=SessionManager.get_rater_experience(),
         rater_fatigue=SessionManager.get_rater_fatigue(),
         rater_screen_size=SessionManager.get_rater_screen_size(),
-        final_qc=rating,
+        final_qc=rating if rating is not None else SessionManager.derive_multifacet_final_qc(ratings),
         ratings=ratings,
         notes=notes,
     )
