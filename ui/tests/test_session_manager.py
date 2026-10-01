@@ -4,7 +4,7 @@ import pytest
 import streamlit as st
 from unittest.mock import MagicMock, patch
 from managers.session_manager import SessionManager
-from constants import SESSION_KEYS, DEFAULT_PANELS
+from constants import SESSION_KEYS
 
 pytestmark = pytest.mark.unit
 

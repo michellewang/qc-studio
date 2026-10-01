@@ -1,6 +1,5 @@
 """Tests for ui.py module."""
 
-from argparse import ArgumentParser
 from unittest.mock import patch, MagicMock
 
 import pandas as pd

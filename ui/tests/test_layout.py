@@ -2,12 +2,10 @@
 
 import json
 from contextlib import contextmanager
-from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 import pandas as pd
 import pytest
-from pydantic import ValidationError
 
 # Mock streamlit and dependencies before importing layout
 import sys
@@ -737,8 +735,6 @@ class TestNavigationControls:
     @patch("app.st")
     def test_previous_button_updates_page(self, mock_st):
         """Test that previous button updates current page."""
-        from app import app
-
         mock_st.session_state = {"landing_page_complete": True, "current_page": 2, "rater_id": "test_rater"}
         mock_st.set_page_config = MagicMock()
 

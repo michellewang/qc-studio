@@ -11,7 +11,6 @@ from utils.config import parse_qc_config
 from utils.data_loaders import (
     load_mri_data,
     load_montage_data,
-    load_iqm_data,
     _resolve_metadata_path,
     _infer_bids_ids_from_path,
     _infer_dataset_root_from_path,
@@ -531,7 +530,7 @@ class TestSaveQcResultsToCsv:
         output_file = temp_dir / "output.tsv"
         records = [qc_record_sample]
 
-        result = save_qc_results_to_csv(output_file, records, drop_duplicates=False)
+        save_qc_results_to_csv(output_file, records, drop_duplicates=False)
 
         assert output_file.exists()
         df = pd.read_csv(output_file, sep="\t")
@@ -545,7 +544,7 @@ class TestSaveQcResultsToCsv:
         """Test saving empty records list."""
         output_file = temp_dir / "output.tsv"
 
-        result = save_qc_results_to_csv(output_file, [], drop_duplicates=False)
+        save_qc_results_to_csv(output_file, [], drop_duplicates=False)
 
         assert output_file.exists()
         df = pd.read_csv(output_file, sep="\t")
@@ -556,7 +555,7 @@ class TestSaveQcResultsToCsv:
         output_file = temp_dir / "output.tsv"
         records = [qc_record_sample, qc_record_sample]
 
-        result = save_qc_results_to_csv(output_file, records, drop_duplicates=True)
+        save_qc_results_to_csv(output_file, records, drop_duplicates=True)
 
         df = pd.read_csv(output_file, sep="\t")
         # Should have only 1 record if duplicates are dropped

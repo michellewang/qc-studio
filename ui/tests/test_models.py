@@ -1,6 +1,5 @@
 """Tests for models.py module."""
 
-from datetime import datetime
 from pathlib import Path
 
 import pytest
