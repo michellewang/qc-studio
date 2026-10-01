@@ -212,61 +212,6 @@ def show_congratulations_page(
             st.rerun()
 
 
-# def _display_session_summary(
-#     rater_id: str,
-#     qc_task: str,
-#     record_list: list,
-#     *,
-#     reviewed_count: int | None = None,
-#     multi_task: bool = False,
-# ) -> None:
-#     """Display summary of the QC session.
-
-#     Args:
-#             rater_id: Rater ID
-#             qc_task: QC task name
-#             record_list: QC records for this task (deduplicated)
-#             reviewed_count: Participants with a decided rating; defaults to len(record_list)
-#             multi_task: When True, ``reviewed_count`` counts cohort pages with every task rated.
-#     """
-#     col1, col2 = st.columns([1, 1])
-#     with col1:
-#         st.subheader("Session Information")
-#         st.write(f"**Rater ID:** {rater_id}")
-#         st.write(f"**QC Task:** {qc_task}")
-#         n_rev = reviewed_count if reviewed_count is not None else len(record_list)
-#         if multi_task:
-#             st.write(f"**Fully completed review pages:** {n_rev}")
-#         else:
-#             st.write(f"**Total Participants Reviewed:** {n_rev}")
-#             qc_value = record.final_qc
-#             ratings_map = record.ratings if hasattr(record, "ratings") else record.get("ratings", None)
-#             if qc_value in QC_RATINGS:
-#                 final_qc_counts[qc_value] = final_qc_counts.get(qc_value, 0) + 1
-#             elif isinstance(ratings_map, dict) and ratings_map:
-#                 vals = [str(v).strip().upper() for v in ratings_map.values() if str(v).strip()]
-#                 if vals and all(v == "PASS" for v in vals):
-#                     final_qc_counts["PASS"] = final_qc_counts.get("PASS", 0) + 1
-#                 elif "FAIL" in vals:
-#                     final_qc_counts["FAIL"] = final_qc_counts.get("FAIL", 0) + 1
-#                 elif "UNCERTAIN" in vals:
-#                     final_qc_counts["UNCERTAIN"] = final_qc_counts.get("UNCERTAIN", 0) + 1
-#                 else:
-#                     final_qc_counts["Unrated"] = final_qc_counts.get("Unrated", 0) + 1
-#             else:
-#                 final_qc_counts["Unrated"] = final_qc_counts.get("Unrated", 0) + 1
-#             final_qc_counts = {}
-#             for record in record_list:
-#                 qc_value = record.final_qc
-#                 if qc_value not in QC_RATINGS:
-#                     final_qc_counts["Unrated"] = final_qc_counts.get("Unrated", 0) + 1
-#                 else:
-#                     final_qc_counts[qc_value] = final_qc_counts.get(qc_value, 0) + 1
-
-#             for qc_status, count in sorted(final_qc_counts.items()):
-#                 st.write(f"**{qc_status}:** {count}")
-
-
 def _display_session_summary(
     rater_id: str,
     qc_task: str,
