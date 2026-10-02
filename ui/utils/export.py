@@ -88,8 +88,8 @@ def build_qc_results_dataframe(qc_records):
             "rater_fatigue": rec_dict.get("rater_fatigue"),
             "rater_screen_size": _normalize_screen_size_label(rec_dict.get("rater_screen_size")),
             "final_qc": rec_dict.get("final_qc"),
-            "facet": pd.NA,
-            "rating_value": pd.NA,
+            "facet": "",
+            "rating_value": "",
             "notes": normalize_note_value(rec_dict.get("notes")),
         }
         ratings = rec_dict.get("ratings")
@@ -97,7 +97,7 @@ def build_qc_results_dataframe(qc_records):
             for facet, value in ratings.items():
                 facet_row = row.copy()
                 facet_row["facet"] = str(facet)
-                facet_row["rating_value"] = value
+                facet_row["rating_value"] = value if value is not None and not pd.isna(value) else ""
                 rows.append(facet_row)
         else:
             rows.append(row)
@@ -109,11 +109,13 @@ def build_qc_results_dataframe(qc_records):
 
     for col in expected_columns:
         if col not in df.columns:
-            df[col] = pd.NA
+            df[col] = ""
     extra = [c for c in df.columns if c not in expected_columns]
     if extra:
         df = df.drop(columns=extra)
     df = df[expected_columns]
+    df = df.fillna("")
+    df = df.replace({pd.NA: ""})
 
     if not df.empty:
         sort_cols = [c for c in ("pipeline", "participant_id", "session_id", "qc_task", "facet") if c in df.columns]
@@ -172,11 +174,13 @@ def save_qc_results_to_csv(out_file, qc_records, drop_duplicates=True):
     # Align column order and fill missing cells (e.g. legacy files with different column order).
     for col in expected_columns:
         if col not in df.columns:
-            df[col] = pd.NA
+            df[col] = ""
     extra = [c for c in df.columns if c not in expected_columns]
     if extra:
         df = df.drop(columns=extra)
     df = df[expected_columns]
+    df = df.fillna("")
+    df = df.replace({pd.NA: ""})
 
     # Drop duplicates based on core identity columns
     dropped = 0
