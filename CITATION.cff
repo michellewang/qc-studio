@@ -22,7 +22,7 @@ authors:
   - given-names: Patrick
     family-names: Sadil
     affiliation: JHU
-  - given-names: 'Manon '
+  - given-names: Manon
     family-names: Heffernan
     affiliation: Institut du Cerveau - ICM
 repository-code: 'https://github.com/nipoppy/qc-studio'
