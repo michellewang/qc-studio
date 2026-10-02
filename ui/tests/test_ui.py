@@ -1,5 +1,6 @@
 """Tests for ui.py module."""
 
+from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 import pandas as pd
@@ -190,7 +191,8 @@ class TestParseArgs:
         )
         monkeypatch.setattr(views.landing_page, "show_landing_page", lambda *args, **kwargs: None)
 
-        runpy.run_path("/home/nikhil/projects/qc-studio/ui/pages/1_Landing_Page.py")
+        landing_page_path = Path(__file__).resolve().parents[2] / "ui" / "pages" / "1_Landing_Page.py"
+        runpy.run_path(str(landing_page_path))
 
         assert calls["rater_id"] == "Eva"
         assert calls["rater_id_display"] == "Eva"
