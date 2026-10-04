@@ -272,6 +272,18 @@ class TestQCRecordsMethods:
         assert SessionManager.get_qc_record_count() == 2
 
 
+class TestMultifacetDerivation:
+    """Tests for multifacet subject-level final QC labels."""
+
+    def test_derive_multifacet_final_qc_all_uncertain(self):
+        ratings = {"frontal": "UNCERTAIN", "parietal": "UNCERTAIN"}
+        assert SessionManager.derive_multifacet_final_qc(ratings) == "All-Uncertain"
+
+    def test_derive_multifacet_final_qc_fail_plus_uncertain(self):
+        ratings = {"frontal": "FAIL", "parietal": "UNCERTAIN"}
+        assert SessionManager.derive_multifacet_final_qc(ratings) == "All-Fail"
+
+
 class TestNotesMethods:
     """Tests for notes management."""
 

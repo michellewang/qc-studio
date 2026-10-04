@@ -1,6 +1,7 @@
 """Congratulations page component for QC-Studio UI."""
 
 from pathlib import Path
+import re
 import pandas as pd
 import streamlit as st
 from constants import MESSAGES, SUCCESS_MESSAGES, INFO_MESSAGES
@@ -23,10 +24,11 @@ def _default_congrats_export_path(
     base_dir = Path(str(out_dir).strip()).expanduser() if out_dir and str(out_dir).strip() else Path(".").expanduser()
     base_dir = base_dir.resolve() if base_dir.is_absolute() else (Path.cwd() / base_dir).resolve()
     rid = str(rater_id).strip().lower() or "rater"
+    pipe = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(qc_pipeline or "").strip()).strip("_").lower() or "qc"
     task = str(qc_task or "all").strip().lower()
     if task == "all":
         task = "all_tasks"
-    filename = f"{rid}_{task}_status.tsv"
+    filename = f"{rid}_{pipe}_{task}_qc_status.tsv"
     return str((base_dir / filename).resolve())
 
 
@@ -54,9 +56,9 @@ def _resolve_congrats_export_file_path(out_dir: str, rater_id: str, save_file_pa
         candidate = Path(str(save_file_path).strip()).expanduser()
         if candidate.suffix:
             return candidate
-        default = _default_congrats_export_path(out_dir, rater_id)
+        default = _default_congrats_export_path(out_dir, rater_id, qc_pipeline="qc", qc_task="all")
         return candidate / Path(default).name
-    return Path(_default_congrats_export_path(out_dir, rater_id))
+    return Path(_default_congrats_export_path(out_dir, rater_id, qc_pipeline="qc", qc_task="all"))
 
 
 def show_congratulations_page(
@@ -274,7 +276,7 @@ def _display_session_summary(
             subject_counts[status] = subject_counts.get(status, 0) + 1
 
         st.write("**Subject-level stats:**")
-        subject_preferred_cols = ["PASS", "FAIL", "UNCERTAIN", "All-Pass", "All-Fail", "Partial-Pass", "Unrated"]
+        subject_preferred_cols = ["PASS", "FAIL", "UNCERTAIN", "All-Pass", "All-Fail", "All-Uncertain", "Partial-Pass", "Unrated"]
         subject_present_cols = [c for c in subject_counts.keys() if c not in subject_preferred_cols]
         subject_cols = [c for c in subject_preferred_cols if c in subject_counts] + sorted(subject_present_cols)
         if not subject_cols:
@@ -324,12 +326,43 @@ def _export_qc_results(
             drop_duplicates: Whether to drop duplicate records
     """
     out_file = _resolve_congrats_export_file_path(out_dir, rater_id, save_file_path)
-    if record_list:
-        out_path, dropped, dropped_details = save_qc_results_to_csv(out_file, record_list, drop_duplicates)
-        msg = SUCCESS_MESSAGES["records_exported"].format(path=out_path)
-        if dropped:
-            lines = "\n".join(f"- {pid} × {sid}: {', '.join(tasks)}" for (pid, sid), tasks in dropped_details.items())
-            msg += f"\n\n⚠️ {dropped} duplicate record(s) removed (kept latest):\n{lines}"
-        st.session_state["_pending_export_msg"] = ("success", msg)
-    else:
+    if not record_list:
         st.session_state["_pending_export_msg"] = ("info", INFO_MESSAGES["no_export_records"])
+        return
+
+    records_by_task: dict[str, list] = {}
+    pipeline_by_task: dict[str, str] = {}
+    for rec in record_list:
+        task_name = str((rec.qc_task if hasattr(rec, "qc_task") else rec.get("qc_task", "")) or "").strip() or "unknown_task"
+        pipe_name = str((rec.pipeline if hasattr(rec, "pipeline") else rec.get("pipeline", "")) or "").strip() or "qc"
+        records_by_task.setdefault(task_name, []).append(rec)
+        pipeline_by_task.setdefault(task_name, pipe_name)
+
+    dropped_total = 0
+    dropped_details_total: dict[tuple[str, str], list[str]] = {}
+    saved_paths: list[str] = []
+    for task_name in sorted(records_by_task.keys()):
+        rows = records_by_task[task_name]
+        pipe_name = pipeline_by_task.get(task_name, "qc")
+        if len(records_by_task) == 1 and save_file_path:
+            target = out_file
+        else:
+            base_dir = out_file.parent if out_file.suffix else out_file
+            filename = Path(_default_congrats_export_path(out_dir, rater_id, qc_pipeline=pipe_name, qc_task=task_name)).name
+            target = base_dir / filename
+
+        out_path, dropped, dropped_details = save_qc_results_to_csv(target, rows, drop_duplicates)
+        saved_paths.append(str(out_path))
+        dropped_total += dropped
+        for key, tasks in dropped_details.items():
+            merged = dropped_details_total.setdefault(key, [])
+            for t in tasks:
+                if t not in merged:
+                    merged.append(t)
+
+    path_label = saved_paths[0] if len(saved_paths) == 1 else ", ".join(saved_paths)
+    msg = SUCCESS_MESSAGES["records_exported"].format(path=path_label)
+    if dropped_total:
+        lines = "\n".join(f"- {pid} × {sid}: {', '.join(tasks)}" for (pid, sid), tasks in dropped_details_total.items())
+        msg += f"\n\n⚠️ {dropped_total} duplicate record(s) removed (kept latest):\n{lines}"
+    st.session_state["_pending_export_msg"] = ("success", msg)

@@ -1,5 +1,7 @@
 """QC viewer component for displaying MRI, montage, and metrics panels."""
 
+import base64
+import binascii
 import math
 import re
 from typing import Any
@@ -533,8 +535,21 @@ def _rating_widget_key(qc_task: str, rver: int) -> str:
 
 
 def _facet_rating_widget_key(qc_task: str, facet: str, rver: int) -> str:
-    facet_token = re.sub(r"[^A-Za-z0-9]+", "_", str(facet).strip()).strip("_").lower() or "facet"
-    return f"qc_rating_{qc_task}_{facet_token}_{rver}"
+    facet_raw = str(facet).strip()
+    facet_token = base64.urlsafe_b64encode(facet_raw.encode("utf-8")).decode("ascii").rstrip("=") or "ZmFjZXQ"
+    return f"qc_rating_{qc_task}_facetb64_{facet_token}_{rver}"
+
+
+def _decode_facet_token(token: str) -> str | None:
+    """Decode a base64 facet token used in widget keys."""
+    if not token:
+        return None
+    padded = token + ("=" * ((4 - (len(token) % 4)) % 4))
+    try:
+        decoded = base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8").strip()
+    except (binascii.Error, UnicodeDecodeError):
+        return None
+    return decoded or None
 
 
 def _notes_widget_key(qc_task: str, nver: int) -> str:
@@ -611,8 +626,8 @@ def _fallback_rating_config_for_task(
 
     Sidebar actions (Play/Checkpoint) run before the main viewer on each rerun.
     If ``_qc_rating_cfg_by_task`` is not populated yet, infer multi-facet shape
-    from the latest saved record or from live widget keys so current page edits
-    are not dropped.
+    from the latest saved record or from reversible facet names in live widget keys
+    so current page edits are not dropped.
     """
     existing = SessionManager.get_qc_record_for_participant(participant_id, session_id, qc_task)
     if existing is not None:
@@ -624,7 +639,7 @@ def _fallback_rating_config_for_task(
 
     effective_rver = _latest_widget_version_for_task(qc_task, "qc_rating_", rver)
     prefix = f"qc_rating_{qc_task}_"
-    facet_tokens: list[str] = []
+    facets: list[str] = []
     for key in list(st.session_state.keys()):
         if not isinstance(key, str) or not key.startswith(prefix):
             continue
@@ -635,11 +650,14 @@ def _fallback_rating_config_for_task(
         tail = f"_{effective_rver}"
         if suffix.endswith(tail):
             token = suffix[: -len(tail)].strip()
-            if token and token not in facet_tokens:
-                facet_tokens.append(token)
+            if not token.startswith("facetb64_"):
+                continue
+            facet_name = _decode_facet_token(token[len("facetb64_") :])
+            if facet_name and facet_name not in facets:
+                facets.append(facet_name)
 
-    if facet_tokens:
-        return {"type": "multi", "scale": list(QC_RATINGS), "facets": facet_tokens}
+    if facets:
+        return {"type": "multi", "scale": list(QC_RATINGS), "facets": facets}
     return None
 
 
@@ -868,11 +886,17 @@ def _sanitize_qc_task_slug(qc_task: str | None) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", task).strip("_") or "unknown_task"
 
 
-def _default_qc_status_filename(rater_id: str | None, qc_task: str | None) -> str:
-    """Stable status filename without timestamp/session-id suffixes."""
+def _sanitize_pipeline_slug(qc_pipeline: str | None) -> str:
+    pipe = str(qc_pipeline or "").strip()
+    return re.sub(r"[^A-Za-z0-9_.-]+", "_", pipe).strip("_").lower() or "qc"
+
+
+def _default_qc_status_filename(rater_id: str | None, qc_pipeline: str | None, qc_task: str | None) -> str:
+    """Stable status filename grouped by rater, pipeline, and task."""
     rid = str(rater_id or "rater").strip().lower() or "rater"
+    pipe_slug = _sanitize_pipeline_slug(qc_pipeline)
     task_slug = _sanitize_qc_task_slug(qc_task)
-    return f"{rid}_{task_slug}_status.tsv"
+    return f"{rid}_{pipe_slug}_{task_slug}_qc_status.tsv"
 
 
 def _build_qc_session_label(
@@ -904,7 +928,7 @@ def _default_qc_save_path(
 ) -> str:
     """Default save path shown to users in the sidebar."""
     base_dir = _resolve_output_base_dir(out_dir)
-    filename = _default_qc_status_filename(SessionManager.get_rater_id(), qc_task)
+    filename = _default_qc_status_filename(SessionManager.get_rater_id(), qc_pipeline, qc_task)
     return str((base_dir / filename).resolve())
 
 
@@ -938,9 +962,10 @@ def _default_qc_checkpoint_path(
     """Single-timestamp checkpoint snapshot filename for the current QC session."""
     stamp = str(timestamp or datetime.now().strftime("%Y%m%dT%H%M%SZ"))
     rater_id = str(SessionManager.get_rater_id() or "rater").strip().lower() or "rater"
+    pipe_slug = _sanitize_pipeline_slug(qc_pipeline)
     task_slug = _sanitize_qc_task_slug(qc_task)
     checkpoint_dir = _checkpoint_dir_for_session(out_dir, qc_session_id or SessionManager.get_qc_session_id())
-    return str((checkpoint_dir / f"{rater_id}_{task_slug}_checkpoint_{stamp}.tsv").resolve())
+    return str((checkpoint_dir / f"{rater_id}_{pipe_slug}_{task_slug}_checkpoint_{stamp}.tsv").resolve())
 
 
 def _checkpoint_frame_for_records(records: list) -> pd.DataFrame:
@@ -948,16 +973,40 @@ def _checkpoint_frame_for_records(records: list) -> pd.DataFrame:
     return build_qc_results_dataframe(records)
 
 
-def _latest_checkpoint_path_for_session(out_dir: str | None, qc_session_id: str | None = None) -> Path | None:
-    """Latest checkpoint file for the active session, if any exists."""
+def _latest_checkpoint_path_for_session(
+    out_dir: str | None,
+    qc_session_id: str | None = None,
+    qc_pipeline: str | None = None,
+    qc_task: str | None = None,
+) -> Path | None:
+    """Latest checkpoint file for the active session, optionally filtered by pipeline/task."""
     checkpoint_dir = _checkpoint_dir_for_session(out_dir, qc_session_id or SessionManager.get_qc_session_id())
-    checkpoint_files = sorted(checkpoint_dir.glob("*.tsv"), key=lambda p: p.name)
-    return checkpoint_files[-1] if checkpoint_files else None
+    checkpoint_files = [p for p in checkpoint_dir.glob("*.tsv") if p.is_file()]
+    if qc_pipeline is not None and qc_task is not None:
+        rid = str(SessionManager.get_rater_id() or "rater").strip().lower() or "rater"
+        prefix = f"{rid}_{_sanitize_pipeline_slug(qc_pipeline)}_{_sanitize_qc_task_slug(qc_task)}_checkpoint_"
+        checkpoint_files = [p for p in checkpoint_files if p.name.startswith(prefix)]
+    if not checkpoint_files:
+        return None
+    checkpoint_files.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0.0, reverse=True)
+    return checkpoint_files[0]
 
 
 def _checkpoint_contents_match_records(records: list, out_dir: str | None, qc_session_id: str | None = None) -> bool:
     """True when the current QC records are unchanged from the most recent checkpoint."""
-    latest_path = _latest_checkpoint_path_for_session(out_dir, qc_session_id)
+    pipelines = {str((r.pipeline if hasattr(r, "pipeline") else r.get("pipeline", "")) or "").strip() for r in records or []}
+    tasks = {str((r.qc_task if hasattr(r, "qc_task") else r.get("qc_task", "")) or "").strip() for r in records or []}
+    pipelines = {p for p in pipelines if p}
+    tasks = {t for t in tasks if t}
+    filter_pipeline = next(iter(pipelines)) if len(pipelines) == 1 else None
+    filter_task = next(iter(tasks)) if len(tasks) == 1 else None
+
+    latest_path = _latest_checkpoint_path_for_session(
+        out_dir,
+        qc_session_id,
+        qc_pipeline=filter_pipeline,
+        qc_task=filter_task,
+    )
     if latest_path is None:
         return False
     try:
@@ -1045,7 +1094,7 @@ def _resolve_qc_save_file_path(out_dir: str | None, save_file_path: str | None, 
         if candidate.suffix:
             return candidate
         task_name = qc_task or "all_tasks"
-        return candidate / _default_qc_status_filename(SessionManager.get_rater_id(), task_name)
+        return candidate / _default_qc_status_filename(SessionManager.get_rater_id(), qc_pipeline, task_name)
     return Path(_default_qc_save_path(out_dir, qc_pipeline=qc_pipeline, qc_task=qc_task, qc_session_id=SessionManager.get_qc_session_id()))
 
 
@@ -1272,17 +1321,33 @@ def _save_qc_record(
 
     export_rows = SessionManager.get_latest_qc_records_per_dedup(None)
     if export_rows:
-        task_label = "all_tasks" if len(qc_tasks) > 1 else (qc_tasks[0] if qc_tasks else "unknown_task")
-        out_file = _resolve_qc_save_file_path(
-            out_dir,
-            save_file_path,
-            qc_pipeline=qc_pipeline,
-            qc_task=task_label,
-        )
-        saved_path, dropped, _ = save_qc_results_to_csv(out_file, export_rows, drop_duplicates)
+        rows_by_task: dict[str, list] = {}
+        for row in export_rows:
+            task_name = str((row.qc_task if hasattr(row, "qc_task") else row.get("qc_task", "")) or "").strip() or "unknown_task"
+            rows_by_task.setdefault(task_name, []).append(row)
+
+        saved_paths: list[Path] = []
+        for task_name in sorted(rows_by_task.keys()):
+            task_rows = rows_by_task[task_name]
+            if save_file_path and len(rows_by_task) == 1:
+                out_file = _resolve_qc_save_file_path(out_dir, save_file_path, qc_pipeline=qc_pipeline, qc_task=task_name)
+            elif save_file_path and len(rows_by_task) > 1:
+                user_target = Path(str(save_file_path).strip()).expanduser()
+                user_dir = user_target.parent if user_target.suffix else user_target
+                out_file = _resolve_qc_save_file_path(str(user_dir), None, qc_pipeline=qc_pipeline, qc_task=task_name)
+            else:
+                out_file = _resolve_qc_save_file_path(out_dir, None, qc_pipeline=qc_pipeline, qc_task=task_name)
+            saved_path, dropped, _ = save_qc_results_to_csv(out_file, task_rows, drop_duplicates)
+            _ = dropped
+            saved_paths.append(Path(saved_path))
+
         record_count = len(export_rows)
         unique_participants = len({str(r.participant_id if hasattr(r, "participant_id") else r.get("participant_id", "")) for r in export_rows})
-        msg = SUCCESS_MESSAGES["records_saved"].format(path=Path(out_file).name)
+        if len(saved_paths) == 1:
+            path_label = saved_paths[0].name
+        else:
+            path_label = ", ".join(p.name for p in saved_paths)
+        msg = SUCCESS_MESSAGES["records_saved"].format(path=path_label)
         msg += f"\n\nSaved {record_count} record(s) across {unique_participants} unique participant(s)."
         kind = "success"
     else:
@@ -1330,7 +1395,12 @@ def _record_qc_for_current_participant(
     """Save a QC record for the current participant without navigating."""
     # A stale/rotated widget key (e.g. the autoplay poll reading a key from before the
     # page advanced) reads back None; ignore it instead of overwriting a saved rating.
-    if rating is None and not ratings:
+    single_rating_present = str(rating).strip().lower() not in {"", "none", "nan"} if rating is not None else False
+    facet_rating_present = False
+    if isinstance(ratings, dict):
+        facet_rating_present = any(str(v).strip().lower() not in {"", "none", "nan"} for v in ratings.values())
+
+    if not single_rating_present and not facet_rating_present:
         return
 
     now = datetime.now()

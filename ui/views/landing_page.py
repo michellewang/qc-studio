@@ -604,10 +604,12 @@ def _display_csv_upload(
             pages_reviewed = count_complete_cohort_pages(qc_cohort, qc_tasks, decided)
             records_reviewed = len(decided)
             total_qc_records = len(qc_cohort) * len(qc_tasks) if qc_cohort and qc_tasks else 0
-            facet_mask = df_task.get("facet").astype(str).str.strip().ne("") if "facet" in df_task.columns else pd.Series(False, index=df_task.index)
+            facet_mask = (
+                df_task["facet"].fillna("").astype(str).str.strip().ne("") if "facet" in df_task.columns else pd.Series(False, index=df_task.index)
+            )
             facet_total = int(facet_mask.sum()) if len(df_task) > 0 else 0
             if "rating_value" in df_task.columns:
-                facet_reviewed = int((facet_mask & df_task["rating_value"].astype(str).str.strip().ne("")).sum())
+                facet_reviewed = int((facet_mask & df_task["rating_value"].fillna("").astype(str).str.strip().ne("")).sum())
             else:
                 facet_reviewed = 0
             participant_ids_in_csv = {str(pid).strip() for pid in df_task["_participant_id_norm"].unique()}

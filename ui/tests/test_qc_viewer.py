@@ -66,14 +66,14 @@ class TestCleanFilename:
     def test_default_qc_save_path_uses_absolute_output_dir(self, tmp_path, monkeypatch):
         """The sidebar default should resolve relative CLI output_dir values under the requested output tree."""
         monkeypatch.chdir(tmp_path)
-        path = _default_qc_save_path("results/run", qc_task="anat_wf_qc")
-        expected = str((tmp_path / "results" / "run" / "rater_anat_wf_qc_status.tsv").resolve())
+        path = _default_qc_save_path("results/run", qc_pipeline="fmriprep", qc_task="anat_wf_qc")
+        expected = str((tmp_path / "results" / "run" / "rater_fmriprep_anat_wf_qc_qc_status.tsv").resolve())
         assert path == expected
 
     def test_congrats_export_path_uses_current_cli_output_dir(self, monkeypatch):
         """The final export default should follow the active CLI output_dir rather than any stale session path."""
         new_out = "/tmp/new_output"
-        expected = str((Path(new_out) / "rater1_all_tasks_status.tsv").resolve())
+        expected = str((Path(new_out) / "rater1_qc_all_tasks_qc_status.tsv").resolve())
         state = {"rater_id": "rater1"}
         monkeypatch.setattr(st, "session_state", state)
         assert qc_viewer_module._default_qc_save_path(new_out, qc_task="all") == expected
@@ -706,7 +706,7 @@ class TestSaveQcRecord:
             drop_duplicates=True,
         )
 
-        out_file = tmp_path / "rater1_anat_wf_qc_status.tsv"
+        out_file = tmp_path / "rater1_fmriprep_anat_wf_qc_qc_status.tsv"
         assert out_file.exists()
         text = out_file.read_text(encoding="utf-8")
         assert "sub-CMH0001" in text
@@ -800,6 +800,21 @@ class TestSaveQcRecord:
         export_df = pd.read_csv(export_path, sep="\t", dtype=str, keep_default_na=False)
 
         pd.testing.assert_frame_equal(checkpoint_df, export_df)
+
+    def test_does_not_save_when_multifacet_payload_contains_only_blank_values(self, autoplay_session_state):
+        """A stale multifacet callback with only blank values should not overwrite existing data."""
+        _record_qc_for_current_participant(
+            "sub-CMH0001",
+            "ses-01",
+            "fsqc",
+            "FS_volume_wf_qc",
+            None,
+            "",
+            ratings={"frontal": None, "parietal": "", "occipital": "nan"},
+        )
+
+        saved = SessionManager.get_qc_record_for_participant("sub-CMH0001", "ses-01", "FS_volume_wf_qc")
+        assert saved is None
 
 
 class TestRatingPersistenceNearAutoAdvance:
@@ -1603,7 +1618,7 @@ class TestDisplayQcPagination:
 
         checkpoint_dir = tmp_path / "checkpoints"
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        checkpoint_path = checkpoint_dir / "rater1_anat_wf_qc_checkpoint_20240102T030405Z.tsv"
+        checkpoint_path = checkpoint_dir / "rater1_fmriprep_anat_wf_qc_checkpoint_20240102T030405Z.tsv"
         pd.DataFrame(
             [
                 {
@@ -1701,7 +1716,7 @@ class TestDisplayQcPagination:
 
         checkpoint_dir = tmp_path / "checkpoints"
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        checkpoint_path = checkpoint_dir / "rater1_anat_wf_qc_checkpoint_20240102T030405Z.tsv"
+        checkpoint_path = checkpoint_dir / "rater1_fmriprep_anat_wf_qc_checkpoint_20240102T030405Z.tsv"
         pd.DataFrame(
             [
                 {
@@ -1758,7 +1773,7 @@ class TestDisplayQcPagination:
         )
 
         assert Path(path).parent == custom_output / "checkpoints"
-        assert Path(path).name == "rater1_anat_wf_qc_checkpoint_20240102T030405Z.tsv"
+        assert Path(path).name == "rater1_fmriprep_anat_wf_qc_checkpoint_20240102T030405Z.tsv"
 
     def test_default_checkpoint_path_uses_single_timestamp_without_pipeline_name(self, autoplay_session_state, tmp_path):
         """Checkpoint snapshots should use a compact rater/task/timestamp naming pattern."""
@@ -1773,9 +1788,9 @@ class TestDisplayQcPagination:
             timestamp="20240102T030405Z",
         )
 
-        expected_name = "rater1_anat_wf_qc_checkpoint_20240102T030405Z.tsv"
+        expected_name = "rater1_fmriprep_anat_wf_qc_checkpoint_20240102T030405Z.tsv"
         assert Path(path).name == expected_name
-        assert "fmriprep" not in Path(path).name
+        assert "fmriprep" in Path(path).name
         assert Path(path).name.count("20240102T030405Z") == 1
 
 

@@ -460,7 +460,9 @@ class SessionManager:
         Returns:
             - ``All-Pass`` when every facet is PASS
             - ``All-Fail`` when every facet is FAIL
+            - ``All-Uncertain`` when every facet is UNCERTAIN
             - ``Partial-Pass`` when at least one facet is PASS and all facets are filled
+            - ``All-Fail`` when there are no PASS ratings and at least one FAIL (for example FAIL + UNCERTAIN)
             - ``None`` otherwise (including missing/blank facet ratings)
         """
         if not isinstance(ratings, dict) or not ratings:
@@ -472,8 +474,12 @@ class SessionManager:
             return "All-Pass"
         if all(v == "FAIL" for v in values):
             return "All-Fail"
+        if all(v == "UNCERTAIN" for v in values):
+            return "All-Uncertain"
         if any(v == "PASS" for v in values):
             return "Partial-Pass"
+        if any(v == "FAIL" for v in values):
+            return "All-Fail"
         return None
 
     @staticmethod

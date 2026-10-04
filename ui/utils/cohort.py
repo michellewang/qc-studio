@@ -119,9 +119,11 @@ def decided_rating_keys_from_df(df: pd.DataFrame, qc_tasks: list[str]) -> set[tu
 
         key = _norm_key(row)
         if has_facet_cols:
-            facet = str(row.get("facet", "")).strip()
+            facet_raw = row.get("facet", "")
+            facet = "" if pd.isna(facet_raw) else str(facet_raw).strip()
             if facet:
-                rating_val = str(row.get("rating_value", "")).strip()
+                rating_raw = row.get("rating_value", "")
+                rating_val = "" if pd.isna(rating_raw) else str(rating_raw).strip()
                 facet_ratings_by_key.setdefault(key, []).append(rating_val)
                 continue
 

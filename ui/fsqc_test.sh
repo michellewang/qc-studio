@@ -1,7 +1,7 @@
 set -euo pipefail
 
 qc_launch_script="main.py"
-qc_pipeline="fmriprep"
+qc_pipeline="fsqc"
 qc_json="${1:-${QC_JSON:-../pipelines/fsqc/qc.json}}"
 qc_task="${2:-${QC_TASK:-FS_preproc_workflow}}"
 dataset_dir="../sample_data"
