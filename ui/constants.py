@@ -175,7 +175,7 @@ MESSAGES = {
     "colorbar_label": "Show Colorbar",
     "interpolation_label": "Interpolation",
     "show_overlay_label": "Show overlay image",
-    "panel_selection_header": "Select Panels to Display",
+    "panel_selection_header": "🎨 Select Panels to Display",
 }
 
 # Error messages

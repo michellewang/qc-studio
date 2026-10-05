@@ -374,7 +374,7 @@ def show_landing_page(
             selected_task = "all"
             SessionManager.set_selected_qc_task(selected_task)
             qc_task = selected_task
-            st.sidebar.subheader("QC tasks from the qc.json")
+            st.sidebar.subheader("Available tasks")
             st.sidebar.caption("Task selection is locked because the run was started with `--qc_task all`.")
         else:
             previous_selection = SessionManager.get_selected_qc_task()
@@ -385,7 +385,7 @@ def show_landing_page(
                 selected_task = str(qc_task).strip()
             else:
                 selected_task = available_qc_tasks[0]
-            st.sidebar.subheader("QC tasks from the qc.json")
+            st.sidebar.subheader("Available tasks")
             radio_value = st.sidebar.radio(
                 label="Choose QC task",
                 options=available_qc_tasks,
@@ -681,8 +681,8 @@ def _display_csv_upload(
     st.markdown(
         """
 	**ℹ️ Tips:**
-	- Save your work periodically using the **Checkpoint** button
-	- Upload a previous checkpoint to resume or review work
+	- Save your work periodically using the **Checkpoint** :floppy_disk:
+	- Upload a previous **checkpoint** to resume or review work
 	"""
     )
 
@@ -693,7 +693,7 @@ def _display_montage_settings() -> None:
     Allows users to specify maximum rows and columns for the montage grid.
     When both are set to None (auto), the montage will optimize for square aspect ratio.
     """
-    st.markdown("#### 🎨 Montage Grid Settings")
+    st.markdown("#### Montage Grid Settings")
 
     with st.form("montage_settings_form"):
         col1, col2 = st.columns(2)
@@ -701,7 +701,7 @@ def _display_montage_settings() -> None:
         with col1:
             current_rows = SessionManager.get_montage_max_rows()
             montage_rows = st.number_input(
-                "Max Rows (use checkbox for auto-calculation)",
+                "Max Rows",
                 min_value=MIN_MONTAGE_GRID_SIZE,
                 max_value=MAX_MONTAGE_GRID_SIZE,
                 value=current_rows if current_rows else MIN_MONTAGE_GRID_SIZE,
@@ -713,7 +713,7 @@ def _display_montage_settings() -> None:
         with col2:
             current_cols = SessionManager.get_montage_max_cols()
             montage_cols = st.number_input(
-                "Max Columns (use checkbox for auto-calculation)",
+                "Max Columns",
                 min_value=MIN_MONTAGE_GRID_SIZE,
                 max_value=MAX_MONTAGE_GRID_SIZE,
                 value=current_cols if current_cols else MIN_MONTAGE_GRID_SIZE,
