@@ -367,15 +367,16 @@ def show_landing_page(
     st.markdown(welcome_markdown)
 
     available_qc_tasks = _landing_qc_task_options(qc_config_path, qc_task)
+    task_changed = False
     if available_qc_tasks:
-        current_selection = SessionManager.get_selected_qc_task()
+        previous_selection = SessionManager.get_selected_qc_task()
+        current_selection = previous_selection
         if current_selection in available_qc_tasks:
             selected_task = current_selection
         elif str(qc_task).strip() in available_qc_tasks:
             selected_task = str(qc_task).strip()
         else:
             selected_task = available_qc_tasks[0]
-        SessionManager.set_selected_qc_task(selected_task)
         st.sidebar.subheader("QC tasks from the qc.json")
         radio_value = st.sidebar.radio(
             label="Choose QC task",
@@ -387,6 +388,7 @@ def show_landing_page(
             selected_task = radio_value
         else:
             selected_task = available_qc_tasks[available_qc_tasks.index(selected_task)]
+        task_changed = bool(previous_selection and selected_task != previous_selection)
         SessionManager.set_selected_qc_task(selected_task)
         qc_task = selected_task
 
@@ -413,6 +415,15 @@ def show_landing_page(
         if qc_cohort is None:
             qc_cohort = build_qc_cohort(participants_df, session_ids or ["ses-01"])
         total_cohort_pages = len(qc_cohort)
+
+        if task_changed:
+            qc_tasks_for_selection = _upload_qc_task_filter_keys(qc_task, qc_config_path) or [qc_task]
+            if SessionManager.all_qc_cohort_pages_complete_for_tasks(qc_tasks_for_selection, qc_cohort):
+                target_page = total_cohort_pages + 1
+            else:
+                next_page = SessionManager.first_qc_cohort_page_missing_for_tasks(qc_tasks_for_selection, qc_cohort)
+                target_page = min(next_page, total_cohort_pages) if total_cohort_pages > 0 else 1
+            SessionManager.set_current_page(target_page)
     except Exception as e:
         st.error(ERROR_MESSAGES["participant_list_load_error"].format(error=e))
         return

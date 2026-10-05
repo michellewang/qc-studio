@@ -755,6 +755,32 @@ class TestSaveQcRecord:
         assert kind == "success"
         assert "Saved 2 record(s) across 2 unique participant(s)." in msg
 
+    def test_save_qc_record_exports_only_active_task_after_task_switch(self, autoplay_session_state, tmp_path):
+        """Saving while viewing one task should not rewrite/export rows from previously rated tasks."""
+        state, _ = autoplay_session_state
+
+        _record_qc_for_current_participant("sub-CMH9999", "ses-01", "fmriprep", "func_wf_qc", "FAIL", "from older task")
+        state[_rating_widget_key("anat_wf_qc", 0)] = "PASS"
+
+        qc_viewer_module._save_qc_record(
+            participant_id="sub-CMH0001",
+            session_id="ses-01",
+            qc_pipeline="fmriprep",
+            qc_tasks=["anat_wf_qc"],
+            total_participants=3,
+            out_dir=str(tmp_path),
+            drop_duplicates=True,
+        )
+
+        anat_file = tmp_path / "rater1_fmriprep_anat_wf_qc_qc_status.tsv"
+        func_file = tmp_path / "rater1_fmriprep_func_wf_qc_qc_status.tsv"
+        assert anat_file.exists()
+        assert not func_file.exists()
+
+        text = anat_file.read_text(encoding="utf-8")
+        assert "anat_wf_qc" in text
+        assert "func_wf_qc" not in text
+
     def test_checkpoint_matches_final_export_for_single_and_multi_facet_records(self, autoplay_session_state, tmp_path):
         """Checkpoint TSVs should match the final qc_status.tsv export row-for-row and column-for-column."""
         state, _ = autoplay_session_state
@@ -1553,6 +1579,37 @@ class TestDisplayQcPagination:
 
         checkpoint_dir = tmp_path / "checkpoints"
         assert any(checkpoint_dir.glob("*.tsv"))
+        mock_rerun.assert_not_called()
+
+    def test_create_checkpoint_uses_only_active_task_records_after_task_switch(self, autoplay_session_state, monkeypatch, tmp_path):
+        """Checkpoint files created from one selected task should not include rows from a previously selected task."""
+        state, mock_rerun = autoplay_session_state
+        state[_rating_widget_key("anat_wf_qc", 0)] = "PASS"
+
+        _record_qc_for_current_participant("sub-CMH9999", "ses-01", "fmriprep", "func_wf_qc", "FAIL", "from older task")
+
+        monkeypatch.setattr(st, "button", self._button_returns_true_for("create_checkpoint"))
+        monkeypatch.setattr(st, "info", MagicMock())
+        monkeypatch.setattr(st, "markdown", MagicMock())
+
+        qc_viewer_module._display_qc_pagination_controls(
+            current_page=1,
+            total_participants=3,
+            participant_id="sub-CMH0001",
+            session_id="ses-01",
+            qc_pipeline="fmriprep",
+            qc_tasks=["anat_wf_qc"],
+            out_dir=str(tmp_path),
+            drop_duplicates=True,
+        )
+
+        checkpoint_dir = tmp_path / "checkpoints"
+        checkpoint_files = list(checkpoint_dir.glob("*.tsv"))
+        assert len(checkpoint_files) == 1
+        assert "_anat_wf_qc_checkpoint_" in checkpoint_files[0].name
+
+        checkpoint_df = pd.read_csv(checkpoint_files[0], sep="\t", dtype=str, keep_default_na=False)
+        assert set(checkpoint_df["qc_task"]) == {"anat_wf_qc"}
         mock_rerun.assert_not_called()
 
     def test_create_checkpoint_button_flushes_live_facet_ratings_before_saving(self, autoplay_session_state, monkeypatch, tmp_path):

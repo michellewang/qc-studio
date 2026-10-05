@@ -214,6 +214,47 @@ class TestShowLandingPage:
         assert radio_call.kwargs["options"] == ["anat_wf_qc", "func_wf_qc"]
         assert radio_call.kwargs["index"] == 0
 
+    @patch("views.landing_page.pd.read_csv")
+    def test_landing_page_task_switch_resets_current_page(self, mock_read_csv, tmp_path):
+        """Switching tasks on landing page should snap pagination to the selected task's first pending page."""
+        from views.landing_page import show_landing_page
+
+        qc_path = tmp_path / "qc_config.json"
+        qc_path.write_text(
+            json.dumps(
+                {
+                    "anat_wf_qc": {"base_mri_image_path": "/tmp/base.nii.gz", "montage_path": "/tmp/montage.svg"},
+                    "func_wf_qc": {"base_mri_image_path": "/tmp/base2.nii.gz", "montage_path": "/tmp/montage2.svg"},
+                }
+            )
+        )
+
+        participants_df = pd.DataFrame({"participant_id": ["sub-CMH0001", "sub-CMH0002"]})
+        mock_read_csv.return_value = participants_df
+
+        mock_st = MagicMock()
+        with _patch_streamlit_for_landing(mock_st):
+            mock_st.session_state[SESSION_KEYS["selected_qc_task"]] = "anat_wf_qc"
+            mock_st.session_state[SESSION_KEYS["current_page"]] = 3
+
+            def _sidebar_radio(*_args, **kwargs):
+                if kwargs.get("label") == "Choose QC task":
+                    return "func_wf_qc"
+                return kwargs.get("options", [None])[kwargs.get("index", 0)]
+
+            mock_st.sidebar.radio.side_effect = _sidebar_radio
+
+            show_landing_page(
+                qc_pipeline="fmriprep",
+                qc_task="anat_wf_qc",
+                out_dir="/output",
+                participant_list="participants.tsv",
+                qc_config_path=str(qc_path),
+            )
+
+        assert mock_st.session_state[SESSION_KEYS["selected_qc_task"]] == "func_wf_qc"
+        assert mock_st.session_state[SESSION_KEYS["current_page"]] == 1
+
     @patch("app.display_qc_viewers")
     def test_app_uses_selected_qc_task_for_viewer_images(self, mock_display_qc_viewers, tmp_path):
         """The selected landing-page task should override the original CLI/default task in the QC viewer."""

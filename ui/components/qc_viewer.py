@@ -1257,7 +1257,7 @@ def _display_qc_pagination_controls(
         help=MESSAGES["create_checkpoint_help"],
     ):
         _save_current_page_qc_state(participant_id, session_id, qc_pipeline, qc_tasks)
-        records = SessionManager.get_latest_qc_records_per_dedup(None)
+        records = SessionManager.get_latest_qc_records_for_task_set(qc_tasks)
         if not records:
             st.session_state["_pending_checkpoint_msg"] = ("info", INFO_MESSAGES["no_export_records"])
         elif _checkpoint_contents_match_records(records, out_dir, SessionManager.get_qc_session_id()):
@@ -1319,7 +1319,7 @@ def _save_qc_record(
 ) -> str | None:
     _record_all_qc_tasks(participant_id, session_id, qc_pipeline, qc_tasks)
 
-    export_rows = SessionManager.get_latest_qc_records_per_dedup(None)
+    export_rows = SessionManager.get_latest_qc_records_for_task_set(qc_tasks)
     if export_rows:
         rows_by_task: dict[str, list] = {}
         for row in export_rows:
