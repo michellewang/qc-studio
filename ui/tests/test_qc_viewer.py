@@ -369,7 +369,7 @@ class TestOnRatingChange:
         )
 
         saved = SessionManager.get_qc_record_for_participant("sub-CMH0001", "ses-01", "FS_volume_wf_qc")
-        assert saved.final_qc == "Partial-Pass"
+        assert saved.final_qc == "Mixed"
         assert saved.ratings == {
             "frontal": "PASS",
             "parietal": "FAIL",
@@ -541,7 +541,7 @@ class TestOnNotesChange:
         saved_multi = SessionManager.get_qc_record_for_participant("sub-CMH0001", "ses-01", "FS_volume_wf_qc")
         assert saved_single.final_qc == "FAIL"
         assert saved_single.notes == "Updated after reviewing notes."
-        assert saved_multi.final_qc == "Partial-Pass"
+        assert saved_multi.final_qc == "Mixed"
         assert saved_multi.ratings == {
             "frontal": "PASS",
             "parietal": "FAIL",
@@ -574,7 +574,7 @@ class TestOnNotesChange:
 
         saved = SessionManager.get_qc_record_for_participant("sub-CMH0001", "ses-01", "FS_volume_wf_qc")
         assert saved is not None
-        assert saved.final_qc == "Partial-Pass"
+        assert saved.final_qc == "Mixed"
         assert saved.ratings == {
             "frontal": "PASS",
             "parietal": "FAIL",
@@ -816,7 +816,6 @@ class TestSaveQcRecord:
             out_dir=str(tmp_path),
             qc_pipeline="fmriprep",
             qc_task="all",
-            qc_session_id="ses-01",
             timestamp="20240101T000000Z",
         )
         export_path = tmp_path / "final_qc_status.tsv"
@@ -1719,7 +1718,6 @@ class TestDisplayQcPagination:
         assert qc_viewer_module._checkpoint_contents_match_records(
             SessionManager.get_latest_qc_records_per_dedup(None),
             str(tmp_path),
-            "ses-01",
         )
         assert len(list(checkpoint_dir.glob("*.tsv"))) == 1
 
@@ -1810,7 +1808,6 @@ class TestDisplayQcPagination:
         assert qc_viewer_module._checkpoint_contents_match_records(
             SessionManager.get_latest_qc_records_per_dedup(None),
             str(tmp_path),
-            "ses-01",
         )
 
     def test_checkpoint_path_uses_session_output_dir_when_out_dir_is_not_explicit(self, autoplay_session_state, tmp_path):
@@ -1825,7 +1822,6 @@ class TestDisplayQcPagination:
             None,
             qc_pipeline="fmriprep",
             qc_task="anat_wf_qc",
-            qc_session_id="ses-01",
             timestamp="20240102T030405Z",
         )
 
@@ -1841,7 +1837,6 @@ class TestDisplayQcPagination:
             str(tmp_path),
             qc_pipeline="fmriprep",
             qc_task="anat_wf_qc",
-            qc_session_id="ses-01",
             timestamp="20240102T030405Z",
         )
 

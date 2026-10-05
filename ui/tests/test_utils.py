@@ -303,12 +303,14 @@ class TestLoadMontageData:
 
     def test_fsqc_volume_montage_uses_all_available_sample_images(self):
         """The sample FSQC volume task should reference all three real montage files in the sample dataset."""
-        qc_path = Path(__file__).resolve().parents[2] / "pipelines" / "fsqc" / "qc.json"
+        repo_root = Path(__file__).resolve().parents[2]
+        qc_path = repo_root / "pipelines" / "fsqc" / "qc.json"
         cfg = parse_qc_config(str(qc_path), "FS_volume_workflow", {"participant_id": "sub-ED01", "session_id": "ses-01"})
 
         assert cfg["montage_path"] is not None
         assert len(cfg["montage_path"]) == 3
-        assert all((Path("sample_data") / path).is_file() for path in cfg["montage_path"])
+        sample_data_root = repo_root / "sample_data"
+        assert all((sample_data_root / path).is_file() for path in cfg["montage_path"])
 
     def test_load_jpeg_file(self, temp_dir):
         """Test loading JPEG file."""

@@ -281,7 +281,11 @@ class TestMultifacetDerivation:
 
     def test_derive_multifacet_final_qc_fail_plus_uncertain(self):
         ratings = {"frontal": "FAIL", "parietal": "UNCERTAIN"}
-        assert SessionManager.derive_multifacet_final_qc(ratings) == "All-Fail"
+        assert SessionManager.derive_multifacet_final_qc(ratings) == "Mixed"
+
+    def test_derive_multifacet_final_qc_pass_plus_fail_is_mixed(self):
+        ratings = {"frontal": "PASS", "parietal": "FAIL"}
+        assert SessionManager.derive_multifacet_final_qc(ratings) == "Mixed"
 
 
 class TestNotesMethods:

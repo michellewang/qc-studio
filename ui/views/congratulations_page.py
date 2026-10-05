@@ -275,7 +275,7 @@ def _display_session_summary(
             subject_counts[status] = subject_counts.get(status, 0) + 1
 
         st.write("**Subject-level stats:**")
-        subject_preferred_cols = ["PASS", "FAIL", "UNCERTAIN", "All-Pass", "All-Fail", "All-Uncertain", "Partial-Pass", "Unrated"]
+        subject_preferred_cols = ["PASS", "FAIL", "UNCERTAIN", "All-Pass", "All-Fail", "All-Uncertain", "Mixed", "Unrated"]
         subject_present_cols = [c for c in subject_counts.keys() if c not in subject_preferred_cols]
         subject_cols = [c for c in subject_preferred_cols if c in subject_counts] + sorted(subject_present_cols)
         if not subject_cols:

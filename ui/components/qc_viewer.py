@@ -927,7 +927,7 @@ def _default_qc_save_path(
     return str((base_dir / filename).resolve())
 
 
-def _checkpoint_dir_for_session(out_dir: str | None, qc_session_id: str | None = None) -> Path:
+def _checkpoint_dir_for_session(out_dir: str | None) -> Path:
     """Directory for timestamped checkpoint snapshots associated with a QC session."""
     if out_dir and str(out_dir).strip():
         base_dir = _resolve_output_base_dir(out_dir)
@@ -951,7 +951,6 @@ def _default_qc_checkpoint_path(
     out_dir: str | None,
     qc_pipeline: str | None = None,
     qc_task: str | None = None,
-    qc_session_id: str | None = None,
     timestamp: str | None = None,
 ) -> str:
     """Single-timestamp checkpoint snapshot filename for the current QC session."""
@@ -959,7 +958,7 @@ def _default_qc_checkpoint_path(
     rater_id = str(SessionManager.get_rater_id() or "rater").strip().lower() or "rater"
     pipe_slug = _sanitize_pipeline_slug(qc_pipeline)
     task_slug = _sanitize_qc_task_slug(qc_task)
-    checkpoint_dir = _checkpoint_dir_for_session(out_dir, qc_session_id or SessionManager.get_qc_session_id())
+    checkpoint_dir = _checkpoint_dir_for_session(out_dir)
     return str((checkpoint_dir / f"{rater_id}_{pipe_slug}_{task_slug}_checkpoint_{stamp}.tsv").resolve())
 
 
@@ -970,12 +969,11 @@ def _checkpoint_frame_for_records(records: list) -> pd.DataFrame:
 
 def _latest_checkpoint_path_for_session(
     out_dir: str | None,
-    qc_session_id: str | None = None,
     qc_pipeline: str | None = None,
     qc_task: str | None = None,
 ) -> Path | None:
     """Latest checkpoint file for the active session, optionally filtered by pipeline/task."""
-    checkpoint_dir = _checkpoint_dir_for_session(out_dir, qc_session_id or SessionManager.get_qc_session_id())
+    checkpoint_dir = _checkpoint_dir_for_session(out_dir)
     checkpoint_files = [p for p in checkpoint_dir.glob("*.tsv") if p.is_file()]
     if qc_pipeline is not None and qc_task is not None:
         rid = str(SessionManager.get_rater_id() or "rater").strip().lower() or "rater"
@@ -987,7 +985,7 @@ def _latest_checkpoint_path_for_session(
     return checkpoint_files[0]
 
 
-def _checkpoint_contents_match_records(records: list, out_dir: str | None, qc_session_id: str | None = None) -> bool:
+def _checkpoint_contents_match_records(records: list, out_dir: str | None) -> bool:
     """True when the current QC records are unchanged from the most recent checkpoint."""
     pipelines = {str((r.pipeline if hasattr(r, "pipeline") else r.get("pipeline", "")) or "").strip() for r in records or []}
     tasks = {str((r.qc_task if hasattr(r, "qc_task") else r.get("qc_task", "")) or "").strip() for r in records or []}
@@ -998,7 +996,6 @@ def _checkpoint_contents_match_records(records: list, out_dir: str | None, qc_se
 
     latest_path = _latest_checkpoint_path_for_session(
         out_dir,
-        qc_session_id,
         qc_pipeline=filter_pipeline,
         qc_task=filter_task,
     )
@@ -1044,7 +1041,6 @@ def _create_qc_checkpoint(
     qc_pipeline: str | None,
     qc_task: str | None,
     *,
-    qc_session_id: str | None = None,
     timestamp: str | None = None,
 ) -> Path:
     """Create a time-stamped checkpoint file for the current QC session; does not overwrite prior checkpoints."""
@@ -1053,7 +1049,6 @@ def _create_qc_checkpoint(
             out_dir,
             qc_pipeline=qc_pipeline,
             qc_task=qc_task,
-            qc_session_id=qc_session_id,
             timestamp=timestamp,
         )
     )
@@ -1255,7 +1250,7 @@ def _display_qc_pagination_controls(
         records = SessionManager.get_latest_qc_records_for_task_set(qc_tasks)
         if not records:
             st.session_state["_pending_checkpoint_msg"] = ("info", INFO_MESSAGES["no_export_records"])
-        elif _checkpoint_contents_match_records(records, out_dir, SessionManager.get_qc_session_id()):
+        elif _checkpoint_contents_match_records(records, out_dir):
             st.session_state["_pending_checkpoint_msg"] = ("info", INFO_MESSAGES["checkpoint_unchanged"])
         else:
             checkpoint_path = _create_qc_checkpoint(
@@ -1263,7 +1258,6 @@ def _display_qc_pagination_controls(
                 out_dir=out_dir,
                 qc_pipeline=qc_pipeline,
                 qc_task=active_task_label,
-                qc_session_id=SessionManager.get_qc_session_id(),
             )
             st.session_state["_pending_checkpoint_msg"] = ("success", SUCCESS_MESSAGES["checkpoint_saved"].format(path=checkpoint_path))
 
@@ -1349,10 +1343,7 @@ def _save_qc_record(
         msg = INFO_MESSAGES["no_export_records"]
         kind = "info"
 
-    if trigger_rerun:
-        st.session_state[PENDING_QC_SAVE_MSG_KEY] = (kind, msg)
-    else:
-        st.session_state[PENDING_QC_SAVE_MSG_KEY] = (kind, msg)
+    st.session_state[PENDING_QC_SAVE_MSG_KEY] = (kind, msg)
 
     cohort_is_complete = False
     if qc_cohort:
