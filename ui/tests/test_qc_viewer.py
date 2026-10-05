@@ -755,6 +755,53 @@ class TestSaveQcRecord:
         assert kind == "success"
         assert "Saved 2 record(s) across 2 unique participant(s)." in msg
 
+    def test_save_qc_record_all_mode_writes_single_file_with_all_tasks(self, autoplay_session_state, tmp_path):
+        """When CLI all-tasks mode is locked, Save QC should write one TSV containing all tasks."""
+        state, _ = autoplay_session_state
+        state["all_tasks_mode_locked"] = True
+        state[_rating_widget_key("anat_wf_qc", 0)] = "PASS"
+        state[_rating_widget_key("func_wf_qc", 0)] = "FAIL"
+
+        qc_viewer_module._save_qc_record(
+            participant_id="sub-CMH0001",
+            session_id="ses-01",
+            qc_pipeline="fmriprep",
+            qc_tasks=["anat_wf_qc", "func_wf_qc"],
+            total_participants=3,
+            out_dir=str(tmp_path),
+            drop_duplicates=True,
+        )
+
+        out_file = tmp_path / "rater1_fmriprep_all_tasks_qc_status.tsv"
+        assert out_file.exists()
+        text = out_file.read_text(encoding="utf-8")
+        assert "anat_wf_qc" in text
+        assert "func_wf_qc" in text
+
+    def test_save_qc_record_all_mode_honors_custom_file_path(self, autoplay_session_state, tmp_path):
+        """In locked all-tasks mode, typed custom file names should be used exactly (not ignored)."""
+        state, _ = autoplay_session_state
+        state["all_tasks_mode_locked"] = True
+        state[_rating_widget_key("anat_wf_qc", 0)] = "PASS"
+        state[_rating_widget_key("func_wf_qc", 0)] = "FAIL"
+        custom_file = tmp_path / "custom" / "all_tasks_export.tsv"
+
+        qc_viewer_module._save_qc_record(
+            participant_id="sub-CMH0001",
+            session_id="ses-01",
+            qc_pipeline="fmriprep",
+            qc_tasks=["anat_wf_qc", "func_wf_qc"],
+            total_participants=3,
+            out_dir=str(tmp_path),
+            drop_duplicates=True,
+            save_file_path=str(custom_file),
+        )
+
+        assert custom_file.exists()
+        text = custom_file.read_text(encoding="utf-8")
+        assert "anat_wf_qc" in text
+        assert "func_wf_qc" in text
+
     def test_save_qc_record_exports_only_active_task_after_task_switch(self, autoplay_session_state, tmp_path):
         """Saving while viewing one task should not rewrite/export rows from previously rated tasks."""
         state, _ = autoplay_session_state

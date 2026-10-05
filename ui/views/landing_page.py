@@ -367,30 +367,38 @@ def show_landing_page(
     st.markdown(welcome_markdown)
 
     available_qc_tasks = _landing_qc_task_options(qc_config_path, qc_task)
+    all_tasks_locked = SessionManager.is_all_tasks_mode_locked()
     task_changed = False
     if available_qc_tasks:
-        previous_selection = SessionManager.get_selected_qc_task()
-        current_selection = previous_selection
-        if current_selection in available_qc_tasks:
-            selected_task = current_selection
-        elif str(qc_task).strip() in available_qc_tasks:
-            selected_task = str(qc_task).strip()
+        if all_tasks_locked:
+            selected_task = "all"
+            SessionManager.set_selected_qc_task(selected_task)
+            qc_task = selected_task
+            st.sidebar.subheader("QC tasks from the qc.json")
+            st.sidebar.caption("Task selection is locked because the run was started with `--qc_task all`.")
         else:
-            selected_task = available_qc_tasks[0]
-        st.sidebar.subheader("QC tasks from the qc.json")
-        radio_value = st.sidebar.radio(
-            label="Choose QC task",
-            options=available_qc_tasks,
-            index=available_qc_tasks.index(selected_task),
-            key="landing_page_qc_task_radio",
-        )
-        if isinstance(radio_value, str) and radio_value in available_qc_tasks:
-            selected_task = radio_value
-        else:
-            selected_task = available_qc_tasks[available_qc_tasks.index(selected_task)]
-        task_changed = bool(previous_selection and selected_task != previous_selection)
-        SessionManager.set_selected_qc_task(selected_task)
-        qc_task = selected_task
+            previous_selection = SessionManager.get_selected_qc_task()
+            current_selection = previous_selection
+            if current_selection in available_qc_tasks:
+                selected_task = current_selection
+            elif str(qc_task).strip() in available_qc_tasks:
+                selected_task = str(qc_task).strip()
+            else:
+                selected_task = available_qc_tasks[0]
+            st.sidebar.subheader("QC tasks from the qc.json")
+            radio_value = st.sidebar.radio(
+                label="Choose QC task",
+                options=available_qc_tasks,
+                index=available_qc_tasks.index(selected_task),
+                key="landing_page_qc_task_radio",
+            )
+            if isinstance(radio_value, str) and radio_value in available_qc_tasks:
+                selected_task = radio_value
+            else:
+                selected_task = available_qc_tasks[available_qc_tasks.index(selected_task)]
+            task_changed = bool(previous_selection and selected_task != previous_selection)
+            SessionManager.set_selected_qc_task(selected_task)
+            qc_task = selected_task
 
         default_rating = SessionManager.get_default_qc_rating()
         default_idx = DEFAULT_QC_RATING_OPTIONS.index(default_rating) if default_rating in DEFAULT_QC_RATING_OPTIONS else 0

@@ -83,6 +83,7 @@ SESSION_KEYS = {
     "qc_cohort_order": "qc_cohort_order",
     "landing_page_complete": "landing_page_complete",
     "selected_qc_task": "selected_qc_task",
+    "all_tasks_mode_locked": "all_tasks_mode_locked",
     "default_qc_rating": "default_qc_rating",
     "selected_panels": "selected_panels",
     "montage_max_rows": "montage_max_rows",

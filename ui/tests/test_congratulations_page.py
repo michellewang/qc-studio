@@ -65,6 +65,18 @@ def test_resolve_congrats_export_file_path_honors_custom_file_path(tmp_path):
     assert resolved == custom_file
 
 
+def test_resolve_congrats_export_file_path_directory_uses_active_pipeline_and_task(tmp_path):
+    custom_dir = tmp_path / "custom"
+    resolved = _resolve_congrats_export_file_path(
+        str(tmp_path),
+        "rater42",
+        str(custom_dir),
+        qc_pipeline="fmriprep",
+        qc_task="anat_wf_qc",
+    )
+    assert resolved == custom_dir / "rater42_fmriprep_anat_wf_qc_qc_status.tsv"
+
+
 def test_export_qc_results_uses_custom_path_and_sets_success_message(tmp_path):
     state = {}
     record = QCRecord(

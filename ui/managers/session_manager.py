@@ -64,6 +64,7 @@ class SessionManager:
             SESSION_KEYS["qc_cohort_order"]: [],
             SESSION_KEYS["landing_page_complete"]: False,
             SESSION_KEYS["selected_qc_task"]: "",
+            SESSION_KEYS["all_tasks_mode_locked"]: False,
             SESSION_KEYS["default_qc_rating"]: DEFAULT_QC_RATING,
             SESSION_KEYS["selected_panels"]: DEFAULT_PANELS.copy(),
             SESSION_KEYS["montage_max_rows"]: DEFAULT_MONTAGE_MAX_ROWS,
@@ -192,6 +193,16 @@ class SessionManager:
     def set_selected_qc_task(qc_task: str):
         """Persist the landing-page QC task selection for the current session."""
         st.session_state[SESSION_KEYS["selected_qc_task"]] = str(qc_task or "").strip()
+
+    @staticmethod
+    def is_all_tasks_mode_locked() -> bool:
+        """Whether task selection is locked because CLI requested ``--qc_task all``."""
+        return bool(st.session_state.get(SESSION_KEYS["all_tasks_mode_locked"], False))
+
+    @staticmethod
+    def set_all_tasks_mode_locked(locked: bool):
+        """Set whether landing-page task switching is disabled for this run."""
+        st.session_state[SESSION_KEYS["all_tasks_mode_locked"]] = bool(locked)
 
     @staticmethod
     def get_default_qc_rating() -> str:

@@ -991,8 +991,12 @@ def _checkpoint_contents_match_records(records: list, out_dir: str | None) -> bo
     tasks = {str((r.qc_task if hasattr(r, "qc_task") else r.get("qc_task", "")) or "").strip() for r in records or []}
     pipelines = {p for p in pipelines if p}
     tasks = {t for t in tasks if t}
-    filter_pipeline = next(iter(pipelines)) if len(pipelines) == 1 else None
-    filter_task = next(iter(tasks)) if len(tasks) == 1 else None
+    if SessionManager.is_all_tasks_mode_locked():
+        filter_pipeline = _sanitize_pipeline_slug(next(iter(pipelines)) if len(pipelines) == 1 else "qc")
+        filter_task = "all"
+    else:
+        filter_pipeline = next(iter(pipelines)) if len(pipelines) == 1 else None
+        filter_task = next(iter(tasks)) if len(tasks) == 1 else None
 
     latest_path = _latest_checkpoint_path_for_session(
         out_dir,
@@ -1310,25 +1314,31 @@ def _save_qc_record(
 
     export_rows = SessionManager.get_latest_qc_records_for_task_set(qc_tasks)
     if export_rows:
-        rows_by_task: dict[str, list] = {}
-        for row in export_rows:
-            task_name = str((row.qc_task if hasattr(row, "qc_task") else row.get("qc_task", "")) or "").strip() or "unknown_task"
-            rows_by_task.setdefault(task_name, []).append(row)
-
         saved_paths: list[Path] = []
-        for task_name in sorted(rows_by_task.keys()):
-            task_rows = rows_by_task[task_name]
-            if save_file_path and len(rows_by_task) == 1:
-                out_file = _resolve_qc_save_file_path(out_dir, save_file_path, qc_pipeline=qc_pipeline, qc_task=task_name)
-            elif save_file_path and len(rows_by_task) > 1:
-                user_target = Path(str(save_file_path).strip()).expanduser()
-                user_dir = user_target.parent if user_target.suffix else user_target
-                out_file = _resolve_qc_save_file_path(str(user_dir), None, qc_pipeline=qc_pipeline, qc_task=task_name)
-            else:
-                out_file = _resolve_qc_save_file_path(out_dir, None, qc_pipeline=qc_pipeline, qc_task=task_name)
-            saved_path, dropped, _ = save_qc_results_to_csv(out_file, task_rows, drop_duplicates)
+        if SessionManager.is_all_tasks_mode_locked() and len(qc_tasks or []) > 1:
+            out_file = _resolve_qc_save_file_path(out_dir, save_file_path, qc_pipeline=qc_pipeline, qc_task="all")
+            saved_path, dropped, _ = save_qc_results_to_csv(out_file, export_rows, drop_duplicates)
             _ = dropped
             saved_paths.append(Path(saved_path))
+        else:
+            rows_by_task: dict[str, list] = {}
+            for row in export_rows:
+                task_name = str((row.qc_task if hasattr(row, "qc_task") else row.get("qc_task", "")) or "").strip() or "unknown_task"
+                rows_by_task.setdefault(task_name, []).append(row)
+
+            for task_name in sorted(rows_by_task.keys()):
+                task_rows = rows_by_task[task_name]
+                if save_file_path and len(rows_by_task) == 1:
+                    out_file = _resolve_qc_save_file_path(out_dir, save_file_path, qc_pipeline=qc_pipeline, qc_task=task_name)
+                elif save_file_path and len(rows_by_task) > 1:
+                    user_target = Path(str(save_file_path).strip()).expanduser()
+                    user_dir = user_target.parent if user_target.suffix else user_target
+                    out_file = _resolve_qc_save_file_path(str(user_dir), None, qc_pipeline=qc_pipeline, qc_task=task_name)
+                else:
+                    out_file = _resolve_qc_save_file_path(out_dir, None, qc_pipeline=qc_pipeline, qc_task=task_name)
+                saved_path, dropped, _ = save_qc_results_to_csv(out_file, task_rows, drop_duplicates)
+                _ = dropped
+                saved_paths.append(Path(saved_path))
 
         record_count = len(export_rows)
         unique_participants = len({str(r.participant_id if hasattr(r, "participant_id") else r.get("participant_id", "")) for r in export_rows})

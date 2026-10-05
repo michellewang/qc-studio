@@ -175,8 +175,14 @@ def main():
     # After onboarding, keep any user override selected in the landing sidebar.
     if not SessionManager.is_landing_page_complete():
         SessionManager.set_default_qc_rating(ctx.get("default_qc_rating", DEFAULT_QC_RATING))
+    cli_all_tasks_mode = str(ctx.get("qc_task", "")).strip().lower() == "all"
+    SessionManager.set_all_tasks_mode_locked(cli_all_tasks_mode)
     selected_qc_task = SessionManager.get_selected_qc_task()
-    if selected_qc_task:
+    if cli_all_tasks_mode:
+        qc_task = "all"
+        qc_tasks = ctx["qc_tasks"]
+        SessionManager.set_selected_qc_task("all")
+    elif selected_qc_task:
         qc_task = selected_qc_task
         qc_tasks = resolve_qc_tasks(selected_qc_task, qc_config_path)
     if not SessionManager.get_qc_session_id():
@@ -192,7 +198,9 @@ def main():
     SessionManager.compact_duplicate_qc_records_if_needed()
 
     session_id_for_sidebar = qc_cohort[0]["session_id"] if qc_cohort else None
-    if selected_qc_task:
+    if cli_all_tasks_mode:
+        qc_tasks = ctx["qc_tasks"]
+    elif selected_qc_task:
         qc_tasks = resolve_qc_tasks(selected_qc_task, qc_config_path)
     else:
         qc_tasks = ctx["qc_tasks"]
