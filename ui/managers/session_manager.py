@@ -18,34 +18,6 @@ class SessionManager:
     """Manages session state access with type safety and defaults."""
 
     @staticmethod
-    def _normalize_rater_screen_size(screen_size: str | None) -> str:
-        """Map legacy/export labels to the canonical landing-page radio options."""
-        if screen_size is None:
-            return ""
-        text = str(screen_size).strip()
-        if not text:
-            return ""
-        mapping = {
-            # Canonical choices
-            "14 or less": "14 or less",
-            "15-20": "15-20",
-            "21-25": "21-25",
-            "26-30": "26-30",
-            "31 or above": "31 or above",
-            "Unknown": "Unknown",
-            # Legacy/input variants seen in historical TSVs/tests
-            "14 inches or less": "14 or less",
-            "15-20in": "15-20",
-            # Export labels written by utils.export._normalize_screen_size_label
-            "Laptop (13 inch)": "14 or less",
-            "Laptop (17 inch)": "15-20",
-            "Monitor (24 inch)": "21-25",
-            "Desktop (27 inch)": "26-30",
-            "Large desktop display (32 inch)": "31 or above",
-        }
-        return mapping.get(text, text)
-
-    @staticmethod
     def init_session_state():
         """Initialize all required session state variables."""
         defaults = {
@@ -174,13 +146,12 @@ class SessionManager:
     @staticmethod
     def get_rater_screen_size() -> str:
         """Get current rater monitor screen size."""
-        value = st.session_state.get(SESSION_KEYS["rater_screen_size"], "")
-        return SessionManager._normalize_rater_screen_size(value)
+        return st.session_state.get(SESSION_KEYS["rater_screen_size"], "")
 
     @staticmethod
     def set_rater_screen_size(screen_size: str):
         """Set rater monitor screen size."""
-        st.session_state[SESSION_KEYS["rater_screen_size"]] = SessionManager._normalize_rater_screen_size(screen_size)
+        st.session_state[SESSION_KEYS["rater_screen_size"]] = screen_size
 
     # QC task selection methods
     @staticmethod
