@@ -6,6 +6,7 @@ import pandas as pd
 import streamlit as st
 from constants import MESSAGES, SUCCESS_MESSAGES, INFO_MESSAGES
 from managers.session_manager import SessionManager
+from utils.path_helpers import sanitize_qc_task_slug
 from utils.export import save_qc_results_to_csv
 
 CONGRATS_EXPORT_PATH_KEY = "congrats_export_path"
@@ -25,9 +26,7 @@ def _default_congrats_export_path(
     base_dir = base_dir.resolve() if base_dir.is_absolute() else (Path.cwd() / base_dir).resolve()
     rid = str(rater_id).strip().lower() or "rater"
     pipe = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(qc_pipeline or "").strip()).strip("_").lower() or "qc"
-    task = str(qc_task or "all").strip().lower()
-    if task == "all":
-        task = "all_tasks"
+    task = sanitize_qc_task_slug(qc_task or "all")
     filename = f"{rid}_{pipe}_{task}_qc_status.tsv"
     return str((base_dir / filename).resolve())
 

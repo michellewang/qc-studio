@@ -23,6 +23,12 @@ def test_default_congrats_export_path_uses_out_dir_and_rater_id(tmp_path, monkey
     assert path == str((tmp_path / "relative" / "run" / "rater42_qc_all_tasks_qc_status.tsv").resolve())
 
 
+def test_default_congrats_export_path_normalizes_task_slug_case(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    path = _default_congrats_export_path("relative/run", "Rater42", qc_pipeline="fmriprep", qc_task="Anat_WF_QC")
+    assert path.endswith("rater42_fmriprep_anat_wf_qc_qc_status.tsv")
+
+
 def test_require_overwrite_confirmation_prompts_before_overwriting_existing_file(tmp_path):
     existing = tmp_path / "existing.tsv"
     existing.write_text("already here")

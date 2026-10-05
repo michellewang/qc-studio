@@ -18,6 +18,7 @@ from components.qc_viewer import AUTOPLAY_RUN_CTX_KEY
 from managers.session_manager import SessionManager
 from constants import SESSION_KEYS, DEFAULT_QC_RATING, DEFAULT_QC_RATING_OPTIONS
 from views.sidebar_cohort_nav import render_sidebar_cohort_subjects
+from utils.path_helpers import sanitize_qc_task_slug
 from utils.cohort import (
     build_qc_cohort,
     normalize_session_id_bids,
@@ -180,11 +181,11 @@ def main():
         qc_tasks = resolve_qc_tasks(selected_qc_task, qc_config_path)
     if not SessionManager.get_qc_session_id():
         SessionManager.set_qc_session_id(datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"))
-    qc_session_label = f"{SessionManager.get_rater_id() or 'rater'}_{qc_pipeline.lower()}_{('all_tasks' if str(qc_task).strip().lower() == 'all' else str(qc_task).strip().lower() or 'unknown_task')}_{SessionManager.get_qc_session_id()}"
+    task_slug = sanitize_qc_task_slug(qc_task)
+    qc_session_label = f"{SessionManager.get_rater_id() or 'rater'}_{qc_pipeline.lower()}_{task_slug}_{SessionManager.get_qc_session_id()}"
     SessionManager.set_qc_session_label(qc_session_label)
     SessionManager.set_qc_session_checkpoint_dir(str((Path(out_dir).expanduser() / "checkpoints").resolve()))
     pipeline_slug = str(qc_pipeline or "").strip().lower() or "qc"
-    task_slug = "all_tasks" if str(qc_task).strip().lower() == "all" else (str(qc_task).strip().lower() or "unknown_task")
     SessionManager.set_qc_session_active_path(
         str((Path(out_dir).expanduser() / f"{(SessionManager.get_rater_id() or 'rater')}_{pipeline_slug}_{task_slug}_qc_status.tsv").resolve())
     )

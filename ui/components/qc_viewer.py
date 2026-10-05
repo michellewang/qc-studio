@@ -27,6 +27,7 @@ from constants import (
 from utils.data_loaders import load_montage_data as _load_montage_data_uncached
 from utils.config import parse_qc_config
 from utils.navigation import request_navigation_rerun
+from utils.path_helpers import sanitize_qc_task_slug
 from utils.export import build_qc_results_dataframe, save_qc_results_to_csv, normalize_note_value
 from managers.niivue_viewer_manager import NiivueViewerManager, NiivueViewerConfig
 from managers.session_manager import SessionManager
@@ -877,13 +878,7 @@ def _filtered_adjacent_pages(
 
 def _sanitize_qc_task_slug(qc_task: str | None) -> str:
     """Build a filepath-safe QC task slug; ``all`` stays explicit in the filename."""
-    task = str(qc_task or "").strip()
-    if not task:
-        return "unknown_task"
-    task_l = task.lower()
-    if task_l == "all":
-        return "all_tasks"
-    return re.sub(r"[^A-Za-z0-9_.-]+", "_", task).strip("_") or "unknown_task"
+    return sanitize_qc_task_slug(qc_task)
 
 
 def _sanitize_pipeline_slug(qc_pipeline: str | None) -> str:
