@@ -888,6 +888,32 @@ class TestSaveQcRecord:
         saved = SessionManager.get_qc_record_for_participant("sub-CMH0001", "ses-01", "FS_volume_wf_qc")
         assert saved is None
 
+    def test_keeps_initial_rating_null_when_all_task_data_sources_are_missing(self, tmp_path):
+        """Missing MRI, montage, and IQM sources should keep the task unrated instead of defaulting to PASS."""
+        missing_root = tmp_path / "missing"
+        missing_root.mkdir()
+        state = {
+            "default_qc_rating": "PASS",
+            "qc_records": [],
+            "rating_version": 0,
+            "notes_version": 0,
+        }
+        with (
+            patch.object(st, "session_state", state),
+            patch.object(st, "markdown"),
+            patch.object(st, "radio", return_value="PASS") as mock_radio,
+        ):
+            qc_viewer_module._display_qc_rating_for_task(
+                participant_id="sub-CMH0001",
+                session_id="ses-01",
+                qc_pipeline="fmriprep",
+                qc_task="anat_wf_qc",
+                rating_config={"type": "single", "scale": ["PASS", "FAIL", "UNCERTAIN"]},
+                task_has_data_sources=False,
+            )
+
+        assert mock_radio.call_args.kwargs["index"] is None
+
 
 class TestRatingPersistenceNearAutoAdvance:
 

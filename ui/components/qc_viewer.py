@@ -298,11 +298,15 @@ def display_qc_viewers(
         qc_config = parse_qc_config(qc_config_path, tname, substitution_values)
         display_label = qc_config.get("display_name") or tname
         rating_cfg = _task_rating_config(qc_config.get("rating"))
+        task_has_data_sources = _task_has_data_sources(qc_config, dataset_dir)
         st.session_state.setdefault("_qc_rating_cfg_by_task", {})[tname] = rating_cfg
         if multi_task and i > 0:
             st.divider()
-        # st.subheader(display_label)
-        task_has_niivue = show_niivue and bool(qc_config.get("base_mri_image_path"))
+        task_has_niivue = (
+            show_niivue
+            and bool(qc_config.get("base_mri_image_path"))
+            and _path_spec_has_existing_file(qc_config.get("base_mri_image_path"), dataset_dir)
+        )
         if task_has_niivue and show_montage and show_iqm:
             _display_niivue_with_secondary_panel(
                 dataset_dir,
@@ -352,6 +356,7 @@ def display_qc_viewers(
             display_label=display_label,
             notes_height=88 if multi_task else 120,
             rating_config=rating_cfg,
+            task_has_data_sources=task_has_data_sources,
         )
 
 
@@ -523,7 +528,8 @@ def _render_image(image_data: dict, filename: str) -> None:
 
     if image_type == "svg":
         # Render SVG as HTML
-        st.components.v1.html(content, height=MONTAGE_HEIGHT, scrolling=True)
+        st.iframe(content, height="content")
+        # st.components.v1.html(content, height=MONTAGE_HEIGHT, scrolling=True)
     elif image_type in ["png", "jpeg"]:
         # Display PNG/JPEG as image
         st.image(content, width="stretch", caption=filename)
@@ -582,6 +588,43 @@ def _task_rating_config(rating_config: dict[str, Any] | None) -> dict[str, Any]:
         mode = "single"
 
     return {"type": mode, "scale": scale, "facets": facets}
+
+
+def _path_spec_has_existing_file(path_spec: Any, dataset_dir: str | Path | None = None) -> bool:
+    """Return True when a configured source resolves to at least one existing file."""
+    if path_spec in (None, ""):
+        return False
+
+    specs = path_spec if isinstance(path_spec, (list, tuple)) else [path_spec]
+    base_root = Path(dataset_dir) if dataset_dir else Path()
+
+    for spec in specs:
+        if spec in (None, ""):
+            continue
+        candidate = Path(spec)
+        if not candidate.is_absolute():
+            candidate = base_root / candidate
+        if candidate.is_file():
+            return True
+        if "*" in str(spec):
+            if any(p.is_file() for p in base_root.glob(str(spec))):
+                return True
+    return False
+
+
+def _task_has_data_sources(qc_config: dict[str, Any] | None, dataset_dir: str | Path | None = None) -> bool:
+    """True when at least one configured QC source resolves to an actual file."""
+    if not isinstance(qc_config, dict):
+        return False
+    return any(
+        _path_spec_has_existing_file(spec, dataset_dir)
+        for spec in (
+            qc_config.get("base_mri_image_path"),
+            qc_config.get("overlay_mri_image_path"),
+            qc_config.get("montage_path"),
+            qc_config.get("iqm_path"),
+        )
+    )
 
 
 def _latest_widget_version_for_task(qc_task: str, prefix: str, fallback: int | None = 0) -> int:
@@ -693,6 +736,7 @@ def _display_qc_rating_for_task(
     display_label: str | None = None,
     notes_height: int = 120,
     rating_config: dict[str, Any] | None = None,
+    task_has_data_sources: bool = True,
 ) -> None:
     """PASS/FAIL/UNCERTAIN and notes for one task (shown under that task's viewers)."""
     label = (display_label or qc_task).strip()
@@ -711,7 +755,9 @@ def _display_qc_rating_for_task(
         initial_notes = existing_record.notes if hasattr(existing_record, "notes") else existing_record.get("notes", "")
         initial_notes = initial_notes or ""
     else:
-        if default_is_unrated:
+        if not task_has_data_sources:
+            initial_rating = None
+        elif default_is_unrated:
             initial_rating = None
         else:
             initial_rating = default_rating if default_rating in cfg["scale"] else cfg["scale"][0]
@@ -745,14 +791,14 @@ def _display_qc_rating_for_task(
                     # print(f"Existing ratings for task '{qc_task}': {existing_ratings}")
 
                     if not existing_ratings:
-                        if default_is_unrated:
+                        if not task_has_data_sources or default_is_unrated:
                             facet_initial = None
                         else:
                             facet_initial = default_rating if default_rating in options else options[0]
                     else:
                         facet_initial = existing_ratings.get(facet)
                         if facet_initial not in options:
-                            if default_is_unrated:
+                            if not task_has_data_sources or default_is_unrated:
                                 facet_initial = None
                             else:
                                 facet_initial = default_rating if default_rating in options else options[0]
