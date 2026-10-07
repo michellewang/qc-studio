@@ -1,4 +1,4 @@
-# QC-Studio MVP Scope
+# Roadmap
 
 ## Design Overview
 ![overview](https://raw.githubusercontent.com/nipoppy/qc-studio/main/assets/nipoppy-qc-studio_overview.jpg)

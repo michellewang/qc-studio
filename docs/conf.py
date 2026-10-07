@@ -89,6 +89,7 @@ myst_heading_anchors = 4
 mermaid_output_format = "raw"
 mermaid_width = "100%"
 mermaid_height = "auto"
+mermaid_init_config = {"startOnLoad": False, "flowchart": {"useMaxWidth": False}}
 
 # -- Copybutton configuration ---------------------------------------------------
 copybutton_exclude = ".linenos, .gp"

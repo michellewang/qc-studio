@@ -1,4 +1,4 @@
-# QC-Studio Architecture Documentation
+# Architecture
 
 ## Overview
 
@@ -275,7 +275,7 @@ It serializes QC records for export, including duplicate-handling logic when req
 ### Complete QC Session Workflow
 
 ```{mermaid}
-flowchart TD
+flowchart LR
     startNode([Start]) --> appInit[app.py initializes SessionManager]
     appInit --> landingCheck{Landing page complete?}
 
