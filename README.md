@@ -2,11 +2,11 @@
 
 A web-based quality control (QC) application for neuroimaging data. QC-Studio allows raters to visualize and assess MRI data, 2D image montages, and IQM metrics in an interactive Streamlit interface.
 
-[See design overview →](docs/DEV_PLAN.md)
+[See design overview →](docs/dev_plan.md)
 
 ## 🎯 Goals
 
-- Create an interactive web app to visualize neuroimaging data - raw and processed! 
+- Create an interactive web app to visualize neuroimaging data - raw and processed!
 - Support multiple image types: 3D MRI (NIfTI), 2D image montages, and IQM metrics
 - Enable structured quality control ratings through a clean, intuitive interface
 
@@ -14,8 +14,8 @@ A web-based quality control (QC) application for neuroimaging data. QC-Studio al
 
 | Document | Purpose | Audience |
 |----------|---------|----------|
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Complete architecture overview | All |
-| [DEV_PLAN.md](docs/DEV_PLAN.md) | Product scope and design overview | Contributors |
+| [architecture.md](docs/architecture.md) | Complete architecture overview | All |
+| [dev_plan.md](docs/dev_plan.md) | Product scope and design overview | Contributors |
 | [ui/tests/README.md](ui/tests/README.md) | Test suite usage and testing patterns | Developers |
 | [SCanD QC guidelines](https://github.com/TIGRLab/SCanD_project/tree/Fir/docs) | Pipeline QC pass/fail criteria (fMRIPrep, FreeSurfer, QSIPrep, XCP-D, NODDIreg) | Raters / supervisors |
 
@@ -85,7 +85,7 @@ pre-commit run --all-files
 
 ```bash
 # Run the web app
-streamlit run ui/app.py
+streamlit run ui/main.py
 
 # Or use the CLI entry point
 python ui/main.py --help
@@ -113,7 +113,7 @@ See LICENSE file for details.
 
 Contributions are welcome! Please:
 
-1. Read the [ARCHITECTURE.md](docs/ARCHITECTURE.md) for design patterns
+1. Read the [architecture.md](docs/architecture.md) for design patterns
 2. Check [ui/tests/README.md](ui/tests/README.md) for testing practices
 3. Follow the code organization described above
 4. Ensure all tests pass before submitting PR

@@ -95,7 +95,7 @@ ui/
 #### `app.py` - Streamlit Application Entry
 **Responsibility**: Main web application orchestration
 
-**Imports**: 
+**Imports**:
 - Screen modules: `views.landing_page`, `views.congratulations_page`
 - Components: `components.qc_viewer`
 - Managers: SessionManager, NiivueViewerManager, PanelLayoutManager
@@ -274,7 +274,7 @@ It serializes QC records for export, including duplicate-handling logic when req
 
 ### Complete QC Session Workflow
 
-```mermaid
+```{mermaid}
 flowchart TD
     startNode([Start]) --> appInit[app.py initializes SessionManager]
     appInit --> landingCheck{Landing page complete?}
@@ -304,42 +304,43 @@ flowchart TD
 ```
 
 ### Module Interaction Diagram
-```mermaid
+
+```{mermaid}
 flowchart TD
-        app[app.py]
-        main[main.py]
-        landing[views/landing_page.py]
-        viewer[components/qc_viewer.py]
-        sidebar[views/sidebar_cohort_nav.py]
-        congrats[views/congratulations_page.py]
-        session[managers/session_manager.py]
-        niivue[managers/niivue_viewer_manager.py]
-        layout[managers/panel_layout_manager.py]
-        config[utils/config.py]
-        loaders[utils/data_loaders.py]
-        export[utils/export.py]
-        models[models/qc_models.py]
-        constants[constants.py]
+    app[app.py]
+    main[main.py]
+    landing[views/landing_page.py]
+    viewer[components/qc_viewer.py]
+    sidebar[views/sidebar_cohort_nav.py]
+    congrats[views/congratulations_page.py]
+    session[managers/session_manager.py]
+    niivue[managers/niivue_viewer_manager.py]
+    layout[managers/panel_layout_manager.py]
+    config[utils/config.py]
+    loaders[utils/data_loaders.py]
+    export[utils/export.py]
+    models[models/qc_models.py]
+    constants[constants.py]
 
-        main --> app
-        app --> landing
-        app --> viewer
-        app --> sidebar
-        app --> congrats
+    main --> app
+    app --> landing
+    app --> viewer
+    app --> sidebar
+    app --> congrats
 
-        landing --> session
-        landing --> config
-        viewer --> session
-        viewer --> niivue
-        viewer --> layout
-        viewer --> config
-        viewer --> loaders
-        viewer --> models
-        viewer --> constants
-        sidebar --> session
-        congrats --> session
-        congrats --> export
-        export --> models
+    landing --> session
+    landing --> config
+    viewer --> session
+    viewer --> niivue
+    viewer --> layout
+    viewer --> config
+    viewer --> loaders
+    viewer --> models
+    viewer --> constants
+    sidebar --> session
+    congrats --> session
+    congrats --> export
+    export --> models
 ```
 
 ---
@@ -396,18 +397,18 @@ pytest ui/tests/ --cov=ui --cov-report=html
 ```python
 class TestNewFeature:
     """Tests for new feature."""
-    
+
     def test_basic_functionality(self):
         """Test basic operation."""
         # Arrange
         component = SomeComponent()
-        
+
         # Act
         result = component.do_something()
-        
+
         # Assert
         assert result == expected_value
-    
+
     def test_edge_case(self):
         """Test edge case behavior."""
         # Similar structure
@@ -420,5 +421,3 @@ class TestNewFeature:
 - **Pytest Documentation**: https://docs.pytest.org/
 - **Python Design Patterns**: https://refactoring.guru/design-patterns
 - **Session State Management**: Streamlit docs on st.session_state
-
----
