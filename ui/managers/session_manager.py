@@ -44,7 +44,7 @@ class SessionManager:
             SESSION_KEYS["sidebar_subject_search"]: "",
             "autoplay_enabled": False,
             "autoplay_start_time": 0.0,
-            "autoplay_duration": 5,
+            "autoplay_duration": 10,
             SESSION_KEYS["iqm_view_selection"]: "Overview",
             SESSION_KEYS["iqm_display_mode_selection"]: "Dataset",
             "qc_session_id": "",
