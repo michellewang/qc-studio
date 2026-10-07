@@ -1,6 +1,6 @@
 # QC-Studio
 
-A web-based quality control (QC) application for neuroimaging data. QC-Studio allows raters to visualize and assess MRI data, 2D image montages, and IQM metrics in an interactive Streamlit interface.
+QC-Studio is a web-based quality control (QC) application for neuroimaging data. It gives raters one place to look at raw BIDS data, processed pipeline derivatives, and image quality metrics (IQMs), assign a structured QC decision with optional notes, and export the result as a tab-separated table. See the [Overview](docs/overview.md) for the design and vocabulary.
 
 [See design overview →](docs/dev_plan.md)
 
@@ -21,12 +21,7 @@ A web-based quality control (QC) application for neuroimaging data. QC-Studio al
 
 ## 🚀 Quick Start
 
-### Prerequisites
-
-- **Python**: 3.10+ (3.12 tested in CI/DEV environment)
-- **pip/venv** OR **[uv](https://github.com/astral-sh/uv)** (recommended for faster installs)
-
-### Option A: Using uv (Recommended - Fastest)
+Requires **Python 3.10+** and **[uv](https://github.com/astral-sh/uv)** (recommended). The traditional pip/venv path is covered in the [Installation guide](docs/installation.md).
 
 ```bash
 # Clone the repository
@@ -35,75 +30,19 @@ cd qc-studio
 
 # Create and activate virtual environment with uv
 uv venv
-
-# Activate the environment
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
-# Install dependencies with uv
+# Install dependencies
 uv pip install -r requirements.txt
 
 # Install niivue-streamlit component
 uv pip install --index-url https://test.pypi.org/simple/ --no-deps niivue-streamlit
 
-# Install development checks
-uv pip install -r requirements-test.txt
-pre-commit install
-```
-
-### Option B: Using pip & venv (Traditional)
-
-```bash
-# Clone the repository
-git clone https://github.com/nipoppy/qc-studio.git
-cd qc-studio
-
-# Create and activate virtual environment
-python3 -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Upgrade pip
-python -m pip install --upgrade pip setuptools wheel
-
-# Install runtime dependencies
-pip install -r requirements.txt
-
-# Install niivue-streamlit component
-pip install --index-url https://test.pypi.org/simple/ --no-deps niivue-streamlit
-
-# Install development checks
-python -m pip install -r requirements-test.txt
-pre-commit install
-```
-
-Before pushing, run all pre-commit checks. This includes the same UI test command used in CI.
-
-```bash
-pre-commit run --all-files
-```
-
-### Run the Application
-
-```bash
-# Run the web app
+# Run the app
 streamlit run ui/main.py
-
-# Or use the CLI entry point
-python ui/main.py --help
 ```
 
-### Try the Demo (Optional)
-
-```bash
-# Test with sample fMRIPrep data
-cd ui
-./fmriprep_test.sh
-```
-
-## 🔗 Related Projects
-
-- [Nipoppy](https://github.com/nipoppy/nipoppy) - Lightweight framework for standardized organization and processing of neuroimaging-clinical datasets.
-- [NiiVue](https://github.com/niivue/niivue) - 3D medical image viewer
-- [Streamlit](https://streamlit.io/) - Python web app framework
+To see QC-Studio end to end with a bundled demo (`./fmriprep_demo.sh`), follow the [Quickstart](docs/quickstart.md). For full installation instructions, see [Installation](docs/installation.md).
 
 ## 📄 License
 
@@ -116,7 +55,14 @@ Contributions are welcome! Please:
 1. Read the [architecture.md](docs/architecture.md) for design patterns
 2. Check [ui/tests/README.md](ui/tests/README.md) for testing practices
 3. Follow the code organization described above
-4. Ensure all tests pass before submitting PR
+4. Set up the development tooling as described [here](docs/installation.md#development-and-test-tooling)
+5. Ensure all tests pass before submitting PR
+
+Before pushing, run all pre-commit checks. This includes the same UI test command used in CI.
+
+```bash
+pre-commit run --all-files
+```
 
 ## ❓ Support
 

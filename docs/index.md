@@ -1,9 +1,9 @@
 # QC-Studio documentation
 
-QC-Studio is a web-based quality control (QC) application for neuroimaging data. It lets raters
-visualize and assess MRI data, 2D image montages, and image quality metrics (IQMs) in an
-interactive [Streamlit](https://streamlit.io/) interface, and export structured PASS / FAIL /
-UNCERTAIN ratings with notes.
+QC-Studio is a web-based quality control (QC) application for neuroimaging data. It gives raters
+one place to look at raw BIDS data, processed pipeline derivatives, and image quality metrics
+(IQMs), assign a structured QC decision with optional notes, and export the result as a
+tab-separated table.
 
 It is part of the [Nipoppy](https://github.com/nipoppy/nipoppy) ecosystem: it reads the BIDS
 datasets and pipeline derivatives that Nipoppy helps standardize, and scores them against
