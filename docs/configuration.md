@@ -187,17 +187,7 @@ Upload a previous `<rater>_status.tsv` (CSV and TSV are both accepted) from the 
 
 ## Bundled pipeline configurations
 
-| Pipeline | `qc.json` | Tasks |
-|----------|-----------|-------|
-| fMRIPrep | [`pipelines/fmriprep/qc.json`](https://github.com/nipoppy/qc-studio/blob/main/pipelines/fmriprep/qc.json) | `anat_wf_qc`, `sdc_wf_qc`, `coreg_wf_qc` |
-| fMRIPrep (legacy demo) | [`pipelines/fmriprep/qc_demo.json`](https://github.com/nipoppy/qc-studio/blob/main/pipelines/fmriprep/qc_demo.json) | `anat_wf_qc`, `sdc_wf_qc`, `coreg_wf_qc` |
-| FreeSurfer | [`pipelines/freesurfer/qc.json`](https://github.com/nipoppy/qc-studio/blob/main/pipelines/freesurfer/qc.json) | `anat_wf_qc` |
-| QSIPrep | [`pipelines/qsiprep/qc.json`](https://github.com/nipoppy/qc-studio/blob/main/pipelines/qsiprep/qc.json) | `seg_brainmask_qc`, `t1_2_mni_qc`, `sdc_wf_qc`, `coreg_wf_qc` |
-| XCP-D | [`pipelines/xcpd/qc.json`](https://github.com/nipoppy/qc-studio/blob/main/pipelines/xcpd/qc.json) | `atlas_coverage_qc`, `coreg_wf_qc`, `denoised_bold_qc` |
-| NODDIreg | [`pipelines/noddireg/qc.json`](https://github.com/nipoppy/qc-studio/blob/main/pipelines/noddireg/qc.json) | `noddireg_density`, `noddireg_od_icvf_isovf` |
-| MRIQC (DWI IQM test) | [`pipelines/mriqc/dwi_iqm_test_qc.json`](https://github.com/nipoppy/qc-studio/blob/main/pipelines/mriqc/dwi_iqm_test_qc.json) | `dwi_iqm_qc` |
-
-Pass any of these to `--qc_json` and any of its task keys to `--qc_task`.
+Example configuration files are available in the [`pipelines/` directory](https://github.com/nipoppy/qc-studio/blob/main/pipelines).
 
 ## See also
 
