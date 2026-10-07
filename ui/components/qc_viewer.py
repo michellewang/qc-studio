@@ -529,7 +529,6 @@ def _render_image(image_data: dict, filename: str) -> None:
     if image_type == "svg":
         # Render SVG as HTML
         st.iframe(content, height="content")
-        # st.components.v1.html(content, height=MONTAGE_HEIGHT, scrolling=True)
     elif image_type in ["png", "jpeg"]:
         # Display PNG/JPEG as image
         st.image(content, width="stretch", caption=filename)
@@ -545,6 +544,25 @@ def _facet_rating_widget_key(qc_task: str, facet: str, rver: int) -> str:
     facet_raw = str(facet).strip()
     facet_token = base64.urlsafe_b64encode(facet_raw.encode("utf-8")).decode("ascii").rstrip("=") or "ZmFjZXQ"
     return f"qc_rating_{qc_task}_facetb64_{facet_token}_{rver}"
+
+
+def _multifacet_bulk_widget_key(qc_task: str, rver: int) -> str:
+    return f"qc_rating_{qc_task}_allfacets_{rver}"
+
+
+def _multifacet_bulk_index_and_sync(bulk_key: str, uniform_value: str | None, options: list[str]) -> int | None:
+    """Return the bulk radio default index while keeping mixed facet state unselected.
+
+    Streamlit warns when a widget gets both an explicit default and a Session State
+    value in the same run. For the bulk control, only provide an explicit default
+    when no Session State value exists; if facets are mixed, force the bulk widget
+    value to ``None`` so stale selections cannot be reapplied.
+    """
+    if uniform_value in options:
+        return None if bulk_key in st.session_state else options.index(uniform_value)
+
+    st.session_state[bulk_key] = None
+    return None
 
 
 def _decode_facet_token(token: str) -> str | None:
@@ -727,6 +745,25 @@ def _on_notes_change(participant_id, session_id, qc_pipeline, qc_task, rver, nve
     _on_rating_change(participant_id, session_id, qc_pipeline, qc_task, rver, nver, rating_config)
 
 
+def _on_multifacet_bulk_change(participant_id, session_id, qc_pipeline, qc_task, rver, nver, rating_config=None):
+    """Apply one selected value to every facet, then persist immediately."""
+    if _is_stale_widget_callback(rver, nver):
+        return
+
+    cfg = _task_rating_config(rating_config)
+    if cfg["type"] != "multi":
+        return
+
+    selected = st.session_state.get(_multifacet_bulk_widget_key(qc_task, rver))
+    if selected not in cfg["scale"]:
+        return
+
+    for facet in cfg["facets"]:
+        st.session_state[_facet_rating_widget_key(qc_task, facet, rver)] = selected
+
+    _on_rating_change(participant_id, session_id, qc_pipeline, qc_task, rver, nver, cfg)
+
+
 def _display_qc_rating_for_task(
     participant_id: str | None,
     session_id: str | None,
@@ -766,17 +803,58 @@ def _display_qc_rating_for_task(
 
     if cfg["type"] == "single":
         options = cfg["scale"]
+        single_key = _rating_widget_key(qc_task, rver)
         st.radio(
             " ",
             options=options,
-            index=options.index(initial_rating) if initial_rating in options else None,
-            key=_rating_widget_key(qc_task, rver),
+            index=None if single_key in st.session_state else (options.index(initial_rating) if initial_rating in options else None),
+            key=single_key,
             label_visibility="collapsed",
             on_change=_on_rating_change,
             args=(participant_id, session_id, qc_pipeline, qc_task, rver, nver, cfg),
         )
     else:
-        # st.caption("Rate each facet using the same task-level scale")
+        options = cfg["scale"]
+        facet_initial_values: dict[str, str | None] = {}
+        for facet in cfg["facets"]:
+            facet_key = _facet_rating_widget_key(qc_task, facet, rver)
+            state_value = st.session_state.get(facet_key)
+            if state_value in options:
+                facet_initial_values[facet] = state_value
+                continue
+
+            if not existing_ratings:
+                if not task_has_data_sources or default_is_unrated:
+                    facet_initial_values[facet] = None
+                else:
+                    facet_initial_values[facet] = default_rating if default_rating in options else options[0]
+                continue
+
+            facet_initial = existing_ratings.get(facet)
+            if facet_initial not in options:
+                if not task_has_data_sources or default_is_unrated:
+                    facet_initial = None
+                else:
+                    facet_initial = default_rating if default_rating in options else options[0]
+            facet_initial_values[facet] = facet_initial
+
+        facet_values = [facet_initial_values.get(facet) for facet in cfg["facets"]]
+        uniform_value = None
+        if facet_values and all(v in options for v in facet_values) and len(set(facet_values)) == 1:
+            uniform_value = facet_values[0]
+
+        bulk_key = _multifacet_bulk_widget_key(qc_task, rver)
+        bulk_index = _multifacet_bulk_index_and_sync(bulk_key, uniform_value, options)
+
+        st.radio(
+            "Apply same rating to all facets",
+            options=options,
+            index=bulk_index,
+            key=bulk_key,
+            horizontal=True,
+            on_change=_on_multifacet_bulk_change,
+            args=(participant_id, session_id, qc_pipeline, qc_task, rver, nver, cfg),
+        )
 
         # Render each facet in its own column, wrapping to new rows as needed
         num_facets = len(cfg["facets"])
@@ -786,31 +864,15 @@ def _display_qc_rating_for_task(
             for j in range(RATING_FACET_COLUMNS):
                 if i + j < num_facets:
                     facet = cfg["facets"][i + j]
-                    options = cfg["scale"]
-
-                    # print(f"Existing ratings for task '{qc_task}': {existing_ratings}")
-
-                    if not existing_ratings:
-                        if not task_has_data_sources or default_is_unrated:
-                            facet_initial = None
-                        else:
-                            facet_initial = default_rating if default_rating in options else options[0]
-                    else:
-                        facet_initial = existing_ratings.get(facet)
-                        if facet_initial not in options:
-                            if not task_has_data_sources or default_is_unrated:
-                                facet_initial = None
-                            else:
-                                facet_initial = default_rating if default_rating in options else options[0]
-
-                    # print(f"Rendering facet '{facet}' with initial value '{facet_initial}' and options {options}")
+                    facet_key = _facet_rating_widget_key(qc_task, facet, rver)
+                    facet_initial = facet_initial_values.get(facet)
 
                     with cols[j]:
                         st.radio(
                             facet,
                             options=options,
-                            index=options.index(facet_initial) if facet_initial in options else None,
-                            key=_facet_rating_widget_key(qc_task, facet, rver),
+                            index=None if facet_key in st.session_state else (options.index(facet_initial) if facet_initial in options else None),
+                            key=facet_key,
                             on_change=_on_rating_change,
                             args=(participant_id, session_id, qc_pipeline, qc_task, rver, nver, cfg),
                         )

@@ -24,6 +24,9 @@ from components.qc_viewer import (
     _record_qc_for_current_participant,
     _rating_widget_key,
     _facet_rating_widget_key,
+    _multifacet_bulk_widget_key,
+    _multifacet_bulk_index_and_sync,
+    _on_multifacet_bulk_change,
     _notes_widget_key,
     _notes_edit_mode_key,
     _record_all_qc_tasks,
@@ -376,6 +379,90 @@ class TestOnRatingChange:
             "temporal": "UNCERTAIN",
             "occipital": "PASS",
         }
+
+    def test_bulk_multifacet_selection_applies_to_all_facets_and_saves(self, autoplay_session_state):
+        state, _ = autoplay_session_state
+        cfg = {
+            "type": "multi",
+            "scale": ["PASS", "FAIL", "UNCERTAIN"],
+            "facets": ["frontal", "parietal", "temporal", "occipital"],
+        }
+        state[_facet_rating_widget_key("FS_volume_wf_qc", "frontal", 0)] = "PASS"
+        state[_facet_rating_widget_key("FS_volume_wf_qc", "parietal", 0)] = "UNCERTAIN"
+        state[_multifacet_bulk_widget_key("FS_volume_wf_qc", 0)] = "FAIL"
+
+        _on_multifacet_bulk_change(
+            participant_id="sub-CMH0001",
+            session_id="ses-01",
+            qc_pipeline="fsqc",
+            qc_task="FS_volume_wf_qc",
+            rver=0,
+            nver=0,
+            rating_config=cfg,
+        )
+
+        for facet in cfg["facets"]:
+            assert state[_facet_rating_widget_key("FS_volume_wf_qc", facet, 0)] == "FAIL"
+
+        saved = SessionManager.get_qc_record_for_participant("sub-CMH0001", "ses-01", "FS_volume_wf_qc")
+        assert saved is not None
+        assert saved.final_qc == "All-Fail"
+        assert saved.ratings == {facet: "FAIL" for facet in cfg["facets"]}
+
+    def test_bulk_multifacet_selection_ignores_invalid_value(self, autoplay_session_state):
+        state, _ = autoplay_session_state
+        cfg = {
+            "type": "multi",
+            "scale": ["PASS", "FAIL", "UNCERTAIN"],
+            "facets": ["frontal", "parietal"],
+        }
+        state[_facet_rating_widget_key("FS_volume_wf_qc", "frontal", 0)] = "PASS"
+        state[_facet_rating_widget_key("FS_volume_wf_qc", "parietal", 0)] = "FAIL"
+        state[_multifacet_bulk_widget_key("FS_volume_wf_qc", 0)] = "MAYBE"
+
+        _on_multifacet_bulk_change(
+            participant_id="sub-CMH0001",
+            session_id="ses-01",
+            qc_pipeline="fsqc",
+            qc_task="FS_volume_wf_qc",
+            rver=0,
+            nver=0,
+            rating_config=cfg,
+        )
+
+        assert state[_facet_rating_widget_key("FS_volume_wf_qc", "frontal", 0)] == "PASS"
+        assert state[_facet_rating_widget_key("FS_volume_wf_qc", "parietal", 0)] == "FAIL"
+        saved = SessionManager.get_qc_record_for_participant("sub-CMH0001", "ses-01", "FS_volume_wf_qc")
+        assert saved is None
+
+    def test_bulk_multifacet_mixed_state_sets_bulk_selection_to_none(self, autoplay_session_state):
+        state, _ = autoplay_session_state
+        bulk_key = _multifacet_bulk_widget_key("FS_volume_wf_qc", 0)
+        state[bulk_key] = "PASS"
+
+        idx = _multifacet_bulk_index_and_sync(bulk_key, None, ["PASS", "FAIL", "UNCERTAIN"])
+
+        assert idx is None
+        assert state[bulk_key] is None
+
+    def test_bulk_multifacet_uniform_state_does_not_overwrite_existing_widget_state(self, autoplay_session_state):
+        state, _ = autoplay_session_state
+        bulk_key = _multifacet_bulk_widget_key("FS_volume_wf_qc", 0)
+        state[bulk_key] = "FAIL"
+
+        idx = _multifacet_bulk_index_and_sync(bulk_key, "PASS", ["PASS", "FAIL", "UNCERTAIN"])
+
+        assert idx is None
+        assert state[bulk_key] == "FAIL"
+
+    def test_bulk_multifacet_uniform_state_prefills_when_no_widget_state_exists(self, autoplay_session_state):
+        state, _ = autoplay_session_state
+        bulk_key = _multifacet_bulk_widget_key("FS_volume_wf_qc", 0)
+        state.pop(bulk_key, None)
+
+        idx = _multifacet_bulk_index_and_sync(bulk_key, "PASS", ["PASS", "FAIL", "UNCERTAIN"])
+
+        assert idx == 0
 
 
 class TestOnNotesChange:
