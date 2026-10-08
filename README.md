@@ -55,7 +55,7 @@ Contributions are welcome! Please:
 1. Read the [architecture.md](docs/architecture.md) for design patterns
 2. Check [ui/tests/README.md](ui/tests/README.md) for testing practices
 3. Follow the code organization described above
-4. Set up the development tooling as described [here](docs/installation.md#development-and-test-tooling)
+4. Set up the development tooling as described [here](docs/installation.md#developer-setup)
 5. Ensure all tests pass before submitting PR
 
 Before pushing, run all pre-commit checks. This includes the same UI test command used in CI.
