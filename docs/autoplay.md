@@ -15,7 +15,8 @@ Autoplay is **off** at the start of every session.
 
 ## Setting the duration
 
-Set the countdown length on the landing page, under **👤 Rater Information**
+Set the countdown length on the landing page, under **👤 Rater Information**.
+The duration can be set between 5 and 15 seconds, and defaults to 10 seconds.
 
 ## Duration countdown
 
