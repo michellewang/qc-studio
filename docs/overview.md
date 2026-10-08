@@ -27,21 +27,22 @@ These terms are used throughout the documentation.
 | **Panel** | One of the three optional views on the QC viewer: the Niivue 3D MRI viewer, the Montage, or QC Metrics (IQM distributions). |
 | **Montage** | A 2D grid of images (SVG, PNG, JPG/JPEG). |
 | **IQM** | Image quality metric, typically an MRIQC group-level table or a per-subject JSON sidecar, shown as a distribution plot. |
-| **Rating** | One of **PASS**, **FAIL**, or **UNCERTAIN**, recorded per QC task per cohort page. |
-| **Checkpoint** | A timestamped snapshot of the current QC records under `<output_dir>/checkpoints/`. |
+| **Rating** | A QC decision (by default **PASS**, **FAIL**, or **UNCERTAIN**), recorded per QC task per cohort page. See also [Rating schemes](ratings.md). |
+| **Facet** | A named aspect of the image, rated separately in a multi-facet task. |
+| **Checkpoint** | A timestamped snapshot of the current QC records`, which can be loaded later to resume. |
 | **Autoplay** | Timed auto-advance through the cohort. See [Autoplay](autoplay.md). |
 
 ## Panels
 
 | Panel | Default | Contents |
 |-------|---------|----------|
-| 🧠 **3D MRI Viewer (Niivue)** | on | Interactive 3D rendering of a base NIfTI (and optional overlay) |
-| 📊 **Montage** | on | 2D image montage for the task, |
-| 📈 **QC Metrics** | off | IQM distribution plots and a metrics table |
+| **3D MRI (Niivue)** | on | Interactive 3D rendering of a base NIfTI (and optional overlay) |
+| **Montage** | on | 2D image montage for the task |
+| **QC Metrics** | off | IQM distribution plots and a metrics table |
 
 ## Supported pipelines
 
-Ready-made `qc.json` files are available in the [`pipelines/`](https://github.com/nipoppy/qc-studio/tree/main/pipelines) directory.
+Ready-made `qc.json` files are available in the [`pipelines/`](https://github.com/nipoppy/qc-studio/tree/main/pipelines) directory. See also [Bundled pipeline configurations](configuration.md#bundled-pipeline-configurations).
 
 ## Related projects
 
