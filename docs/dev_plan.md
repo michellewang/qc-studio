@@ -22,7 +22,7 @@
 
 ## Constraints
 - User has full access to data either locally or via ssh
-- QC UI is populated based on files listed in the `pipeline_qc.json` (fixed schema)
+- QC UI is populated based on files listed in the `qc.json` (fixed schema)
     - Does allow custom “qc-task” definitions.
 - Only single base image and overlay in niivue panel
 - Montage panel supports only 2D image files: SVG, PNG, JPG/JPEG. No HTML.
