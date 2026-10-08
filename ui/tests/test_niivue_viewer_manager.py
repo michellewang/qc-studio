@@ -1,10 +1,12 @@
 """Unit tests for NiivueViewerManager."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 import streamlit as st
-from unittest.mock import MagicMock, patch
-from managers.niivue_viewer_manager import NiivueViewerConfig, NiivueViewerManager
+
 from constants import VIEW_MODES, OVERLAY_COLORMAPS, DEFAULT_OVERLAY_OPACITY
+from managers.niivue_viewer_manager import NiivueViewerConfig, NiivueViewerManager
 
 pytestmark = pytest.mark.unit
 
