@@ -100,7 +100,33 @@ The schema is defined by the `QCTask` model in [`ui/models/qc_models.py`](https:
 | `iqm_path` | path or list of paths | no | IQM sources: TSV/CSV distribution tables or JSON metric files, one entry per pipeline source. |
 | `montage_max_rows` | integer, 1–10 | no | Default maximum grid rows. Omit for automatic layout. |
 | `montage_max_cols` | integer, 1–10 | no | Default maximum grid columns. Omit for automatic layout. |
-| `rating` | object | no | See [Rating schemes](ratings.md). |
+| `rating` | object | no | Rating scheme for the task. See [Rating fields](#rating-fields). |
+
+### Rating fields
+
+The optional `rating` object sets how a task is rated (see [Rating schemes](ratings.md)).
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| `type` | `"single"` or `"multi"` | `"single"` |
+| `scale` | The rating options offered (shared by all facets) | `["PASS", "FAIL", "UNCERTAIN"]` |
+| `facets` | The facet names to rate (used when `type` is `"multi"`) | none |
+
+If `type` is `"multi"` but no facets are listed, the task falls back to a single rating.
+
+Example of a multi-facet task:
+
+```json
+"FS_preproc_workflow": {
+    "base_mri_image_path": "derivatives/fmriprep/[[NIPOPPY_BIDS_PARTICIPANT_ID]]/...",
+    "montage_path": ["derivatives/fmriprep/[[NIPOPPY_BIDS_PARTICIPANT_ID]]/figures/..."],
+    "rating": {
+        "type": "multi",
+        "scale": ["PASS", "FAIL", "UNCERTAIN"],
+        "facets": ["Cropped", "Aliasing", "Motion", "Susceptibility", "Ringing", "Inhomogeneity"]
+    }
+}
+```
 
 ### Path substitutions
 
