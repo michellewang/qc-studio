@@ -275,6 +275,47 @@ class TestParseArgs:
         assert captured["nav"]["show_subject_filter"] is False
         assert captured["nav"]["show_subject_list"] is False
 
+    @pytest.mark.parametrize(
+        "tasks, expected_task",
+        [(["anat_wf_qc"], "anat_wf_qc"), (["anat_wf_qc", "func_wf_qc"], "all")],
+    )
+    def test_cli_context_collapses_all_to_single_task(self, monkeypatch, tmp_path, tasks, expected_task):
+        """``--qc_task all`` with a single-task qc.json runs as that task, not all-tasks mode."""
+        import json
+        import main
+
+        qc_json = tmp_path / "qc.json"
+        qc_json.write_text(json.dumps({t: {} for t in tasks}))
+        participants = tmp_path / "participants.tsv"
+        pd.DataFrame({"participant_id": ["sub-01"]}).to_csv(participants, sep="\t", index=False)
+        monkeypatch.setattr(main.SessionManager, "get_qc_cohort_order", lambda: None)
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "main.py",
+                "--dataset_dir",
+                str(tmp_path),
+                "--participant_list",
+                str(participants),
+                "--session_list",
+                "ses-01",
+                "--qc_pipeline",
+                "fmriprep",
+                "--qc_task",
+                "all",
+                "--output_dir",
+                str(tmp_path / "out"),
+                "--qc_json",
+                str(qc_json),
+            ],
+        )
+
+        ctx = main.get_cli_run_context()
+
+        assert ctx["qc_task"] == expected_task
+        assert ctx["qc_tasks"] == tasks
+
     def test_parse_args_missing_required_argument(self):
         """Test parsing with missing required argument."""
         from main import parse_args

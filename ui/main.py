@@ -134,13 +134,17 @@ def get_cli_run_context():
             file=sys.stderr,
         )
         raise SystemExit(2)
+    qc_task = args.qc_task
+    if str(qc_task).strip().lower() == "all" and len(qc_tasks) == 1:
+        # "all" with a single task is that task; avoid all-tasks mode file naming.
+        qc_task = qc_tasks[0]
     return {
         "dataset_dir": args.dataset_dir,
         "participant_list": args.participant_list,
         "session_list": args.session_list,
         "session_ids": session_ids,
         "qc_pipeline": args.qc_pipeline,
-        "qc_task": args.qc_task,
+        "qc_task": qc_task,
         "qc_tasks": qc_tasks,
         "qc_config_path": qc_config_path,
         "out_dir": args.out_dir,

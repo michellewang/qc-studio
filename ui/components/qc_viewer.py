@@ -2,12 +2,12 @@
 
 import base64
 import binascii
+import glob
 import math
 import re
 from typing import Any
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as components
 import time
 from datetime import datetime, timedelta
 from html import escape
@@ -202,7 +202,7 @@ def _render_autoplay_countdown_main_banner() -> None:
     duration = float(SessionManager.get_autoplay_duration())
     deadline_ms = int((t0 + duration) * 1000)
     secs_now = max(0, int(math.ceil(duration - (time.time() - t0) - 1e-9)))
-    components.html(
+    st.iframe(
         f"""
 		<div style="font-family:system-ui,sans-serif;padding:10px 14px;background:#153448;
 		  color:#f8fafc;border-radius:10px;margin:0 0 12px 0;display:flex;align-items:center;
@@ -625,7 +625,9 @@ def _path_spec_has_existing_file(path_spec: Any, dataset_dir: str | Path | None 
         if candidate.is_file():
             return True
         if "*" in str(spec):
-            if any(p.is_file() for p in base_root.glob(str(spec))):
+            # Path.glob rejects absolute patterns, so use glob.glob on a fully resolved pattern.
+            pattern = str(spec) if Path(spec).is_absolute() else str(Path(glob.escape(str(base_root))) / str(spec))
+            if any(Path(p).is_file() for p in glob.glob(pattern)):
                 return True
     return False
 
@@ -1093,13 +1095,25 @@ def _latest_checkpoint_path_for_session(
     return checkpoint_files[0]
 
 
-def _checkpoint_contents_match_records(records: list, out_dir: str | None) -> bool:
-    """True when the current QC records are unchanged from the most recent checkpoint."""
+def _checkpoint_contents_match_records(
+    records: list,
+    out_dir: str | None,
+    qc_pipeline: str | None = None,
+    qc_task: str | None = None,
+) -> bool:
+    """True when the current QC records are unchanged from the most recent checkpoint.
+
+    Pass ``qc_pipeline``/``qc_task`` with the same values given to ``_create_qc_checkpoint``
+    so the lookup matches the checkpoint file name; otherwise they are inferred from records.
+    """
     pipelines = {str((r.pipeline if hasattr(r, "pipeline") else r.get("pipeline", "")) or "").strip() for r in records or []}
     tasks = {str((r.qc_task if hasattr(r, "qc_task") else r.get("qc_task", "")) or "").strip() for r in records or []}
     pipelines = {p for p in pipelines if p}
     tasks = {t for t in tasks if t}
-    if SessionManager.is_all_tasks_mode_locked():
+    if qc_pipeline is not None and qc_task is not None:
+        filter_pipeline = qc_pipeline
+        filter_task = qc_task
+    elif SessionManager.is_all_tasks_mode_locked():
         filter_pipeline = _sanitize_pipeline_slug(next(iter(pipelines)) if len(pipelines) == 1 else "qc")
         filter_task = "all"
     else:
@@ -1362,7 +1376,7 @@ def _display_qc_pagination_controls(
         records = SessionManager.get_latest_qc_records_for_task_set(qc_tasks)
         if not records:
             st.session_state["_pending_checkpoint_msg"] = ("info", INFO_MESSAGES["no_export_records"])
-        elif _checkpoint_contents_match_records(records, out_dir):
+        elif _checkpoint_contents_match_records(records, out_dir, qc_pipeline=qc_pipeline, qc_task=active_task_label):
             st.session_state["_pending_checkpoint_msg"] = ("info", INFO_MESSAGES["checkpoint_unchanged"])
         else:
             checkpoint_path = _create_qc_checkpoint(

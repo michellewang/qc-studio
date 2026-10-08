@@ -692,6 +692,7 @@ class TestApp:
         )
 
         mock_congrats.assert_called_once()
+        assert mock_congrats.call_args.kwargs["qc_pipeline"] == "fmriprep"
 
 
 class TestQcViewerLayout:

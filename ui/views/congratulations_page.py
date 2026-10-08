@@ -79,6 +79,7 @@ def show_congratulations_page(
     qc_cohort: list | None = None,
     qc_tasks: list | None = None,
     entrypoint_rel_path: str | None = None,
+    qc_pipeline: str | None = None,
 ) -> None:
     """Display congratulations (full summary) or a minimal placeholder until all subjects are QC'd.
 
@@ -92,6 +93,7 @@ def show_congratulations_page(
             session_id: BIDS session id for legacy single-session completion checks.
             qc_tasks: Task keys for this run (defaults to ``[qc_task]``).
             entrypoint_rel_path: If set (e.g. ``"main.py"``), sidebar navigation uses ``st.switch_page``.
+            qc_pipeline: Pipeline name used in export file names (matches the sidebar save).
     """
     tasks_eff = list(qc_tasks) if qc_tasks else [qc_task]
 
@@ -150,8 +152,7 @@ def show_congratulations_page(
     )
 
     rater_id = SessionManager.get_rater_id()
-    session_label = SessionManager.get_qc_session_label()
-    pipeline_for_export = session_label.split("_")[1] if "_" in session_label else None
+    pipeline_for_export = qc_pipeline or None
     all_tasks_locked = SessionManager.is_all_tasks_mode_locked()
     single_file_mode = bool(all_tasks_locked and len(tasks_eff) > 1)
     export_task_default = "all" if single_file_mode else (tasks_eff[0] if len(tasks_eff) == 1 else "all")

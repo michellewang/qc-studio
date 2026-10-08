@@ -380,6 +380,32 @@ class TestOnRatingChange:
             "occipital": "PASS",
         }
 
+    @pytest.mark.parametrize("facet", ["T1 SNR", "Skull-strip (BET)", "GM/WM_Contrast", "Ünïcode ε"])
+    def test_facet_names_saved_as_specified(self, autoplay_session_state, facet):
+        """Facet names keep case, spaces and punctuation in saved records and inferred configs."""
+        state, _ = autoplay_session_state
+        state[_facet_rating_widget_key("FS_volume_wf_qc", facet, 0)] = "PASS"
+
+        # No saved record yet: facets are recovered from the live widget keys.
+        inferred = qc_viewer_module._fallback_rating_config_for_task("sub-CMH0001", "ses-01", "FS_volume_wf_qc", 0)
+        assert inferred["facets"] == [facet]
+
+        _on_rating_change(
+            participant_id="sub-CMH0001",
+            session_id="ses-01",
+            qc_pipeline="fsqc",
+            qc_task="FS_volume_wf_qc",
+            rver=0,
+            nver=0,
+            rating_config=inferred,
+        )
+
+        saved = SessionManager.get_qc_record_for_participant("sub-CMH0001", "ses-01", "FS_volume_wf_qc")
+        assert saved.ratings == {facet: "PASS"}
+        # Saved record path: facets come from the record keys.
+        inferred_from_record = qc_viewer_module._fallback_rating_config_for_task("sub-CMH0001", "ses-01", "FS_volume_wf_qc", 0)
+        assert inferred_from_record["facets"] == [facet]
+
     def test_bulk_multifacet_selection_applies_to_all_facets_and_saves(self, autoplay_session_state):
         state, _ = autoplay_session_state
         cfg = {
@@ -1881,6 +1907,30 @@ class TestDisplayQcPagination:
         )
         assert len(list(checkpoint_dir.glob("*.tsv"))) == 1
 
+    def test_checkpoint_guard_uses_checkpoint_label_in_all_tasks_mode_with_one_task(self, autoplay_session_state, tmp_path):
+        """All-tasks lock with one task writes a task-named checkpoint; the guard must look up that same name."""
+        state, _ = autoplay_session_state
+        state["rater_id"] = "rater1"
+        SessionManager.set_all_tasks_mode_locked(True)
+        record = QCRecord(
+            participant_id="sub-CMH0001",
+            session_id="ses-01",
+            qc_task="anat_wf_qc",
+            pipeline="fmriprep",
+            timestamp="2024-01-01 00:00:00",
+            rater_id="rater1",
+            rater_experience="novice",
+            rater_fatigue="low",
+            final_qc="PASS",
+            notes="",
+        )
+        SessionManager.set_qc_records([record])
+        records = SessionManager.get_qc_records()
+
+        qc_viewer_module._create_qc_checkpoint(records, str(tmp_path), "fmriprep", "anat_wf_qc")
+
+        assert qc_viewer_module._checkpoint_contents_match_records(records, str(tmp_path), qc_pipeline="fmriprep", qc_task="anat_wf_qc")
+
     def test_checkpoint_export_trims_whitespace_and_newlines_from_notes(self, autoplay_session_state, tmp_path):
         """Checkpoint exports should normalize notes the same way as final TSV exports."""
         state, _ = autoplay_session_state
@@ -2029,7 +2079,7 @@ class TestAutoplayCountdownTiming:
         state, _ = autoplay_session_state
         monkeypatch.setattr(qc_viewer_module.time, "time", lambda: self.FIXED_NOW)
         mock_html = MagicMock()
-        monkeypatch.setattr(qc_viewer_module.components, "html", mock_html)
+        monkeypatch.setattr(qc_viewer_module.st, "iframe", mock_html)
         state["autoplay_duration"] = 5
         state["autoplay_start_time"] = self.FIXED_NOW - 2
 
@@ -2042,7 +2092,7 @@ class TestAutoplayCountdownTiming:
         state, _ = autoplay_session_state
         monkeypatch.setattr(qc_viewer_module.time, "time", lambda: self.FIXED_NOW)
         mock_html = MagicMock()
-        monkeypatch.setattr(qc_viewer_module.components, "html", mock_html)
+        monkeypatch.setattr(qc_viewer_module.st, "iframe", mock_html)
         state["autoplay_duration"] = 5
         state["autoplay_start_time"] = self.FIXED_NOW - 10
 
@@ -2055,7 +2105,7 @@ class TestAutoplayCountdownTiming:
         state, _ = autoplay_session_state
         monkeypatch.setattr(qc_viewer_module.time, "time", lambda: self.FIXED_NOW)
         mock_html = MagicMock()
-        monkeypatch.setattr(qc_viewer_module.components, "html", mock_html)
+        monkeypatch.setattr(qc_viewer_module.st, "iframe", mock_html)
         state["autoplay_duration"] = 5
         state["autoplay_start_time"] = self.FIXED_NOW
 
@@ -2068,7 +2118,7 @@ class TestAutoplayCountdownTiming:
         state, _ = autoplay_session_state
         monkeypatch.setattr(qc_viewer_module.time, "time", lambda: self.FIXED_NOW)
         mock_html = MagicMock()
-        monkeypatch.setattr(qc_viewer_module.components, "html", mock_html)
+        monkeypatch.setattr(qc_viewer_module.st, "iframe", mock_html)
         state["autoplay_duration"] = 7
         state["autoplay_start_time"] = self.FIXED_NOW - 1
 
@@ -2081,7 +2131,7 @@ class TestAutoplayCountdownTiming:
         """No banner should be drawn once autoplay is turned off."""
         state, _ = autoplay_session_state
         mock_html = MagicMock()
-        monkeypatch.setattr(qc_viewer_module.components, "html", mock_html)
+        monkeypatch.setattr(qc_viewer_module.st, "iframe", mock_html)
         state["autoplay_enabled"] = False
         state["autoplay_start_time"] = time.time()
 
@@ -2093,10 +2143,32 @@ class TestAutoplayCountdownTiming:
         """Autoplay enabled but not yet started (start_time == 0) should not draw a banner."""
         state, _ = autoplay_session_state
         mock_html = MagicMock()
-        monkeypatch.setattr(qc_viewer_module.components, "html", mock_html)
+        monkeypatch.setattr(qc_viewer_module.st, "iframe", mock_html)
         state["autoplay_enabled"] = True
         state["autoplay_start_time"] = 0.0
 
         _render_autoplay_countdown_main_banner()
 
         mock_html.assert_not_called()
+
+
+class TestPathSpecHasExistingFile:
+    """Tests for resolving configured source paths, including glob patterns."""
+
+    def test_relative_glob_matches(self, tmp_path):
+        (tmp_path / "sub-01").mkdir()
+        (tmp_path / "sub-01" / "img.svg").write_text("x")
+        assert qc_viewer_module._path_spec_has_existing_file("sub-01/*.svg", tmp_path)
+
+    def test_absolute_glob_matches(self, tmp_path):
+        (tmp_path / "img.svg").write_text("x")
+        assert qc_viewer_module._path_spec_has_existing_file(str(tmp_path / "*.svg"), "/unrelated")
+
+    def test_absolute_glob_no_match(self, tmp_path):
+        assert not qc_viewer_module._path_spec_has_existing_file(str(tmp_path / "*.svg"))
+
+    def test_relative_glob_with_special_chars_in_base(self, tmp_path):
+        base = tmp_path / "data[1]"
+        base.mkdir()
+        (base / "img.svg").write_text("x")
+        assert qc_viewer_module._path_spec_has_existing_file("*.svg", base)

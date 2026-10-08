@@ -89,6 +89,7 @@ def app(
             session_id=session_id,
             qc_cohort=qc_cohort_eff,
             qc_tasks=qc_tasks_eff,
+            qc_pipeline=qc_pipeline,
         )
         return
 
