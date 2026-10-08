@@ -36,9 +36,12 @@ Open `http://localhost:8501` on a browser.
 
 1. **👤 Rater Information** — enter your rater name or ID, and adjust other metadata/autoplay settings as needed.
 2. **🖼️ Display Panels** — choose which panels to show, and set the montage grid's maximum rows and columns. At least one panel is required.
-3. **📤 Upload Existing QC File** — optional
+3. **📤 Upload Existing QC File** — optional. Pick a previous results or checkpoint file to resume where you left off.
 
-Press **✅ Continue to QC**.
+The sidebar lets you choose the QC task to rate and the [default rating](ratings.md#default-rating)
+preselected on unrated pages.
+
+Press **Continue to QC 🚀**.
 
 **QC viewer** — one page per (participant, session):
 
@@ -49,16 +52,17 @@ Press **✅ Continue to QC**.
 Click a rating. It is saved the moment you click.
 **Next** saves the page and advances; **🏁 Create checkpoint** writes a timestamped snapshot.
 
-Once all ratings are complete, click **💾 Export Final Results** to write the final TSV.
+**Final page** — once every page is rated, **Next** opens a summary of your ratings.
+Click **💾 Export Final Results** to write the final TSV(s).
 
 ## Running QC-Studio on your own data
 
-Run `streamlit run ui/main.py --help` for more information on how to run the app with your own setup.
+Run `python ui/main.py --help` for more information on how to run the app with your own setup.
 The demo is just a wrapper around this command.
 
 ## Next steps
 
-- [Configuration](configuration.md) — every flag, the `qc.json` schema, substitutions, and
-  output columns.
+- [Configuration](configuration.md) — every flag, the `qc.json` schema, substitutions, and output columns.
+- [Rating schemes](ratings.md) — single and multi-facet ratings.
 - [Autoplay](autoplay.md) — timed auto-advance for fast-pass review of large cohorts.
 - [Architecture](architecture.md) — how the code is organized, if you plan to contribute.
