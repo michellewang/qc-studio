@@ -50,7 +50,7 @@
     - Rating controls and save/next flow ([qc_viewer.py](https://github.com/nipoppy/qc-studio/blob/main/ui/components/qc_viewer.py))
     - Sidebar cohort navigation ([sidebar_cohort_nav.py](https://github.com/nipoppy/qc-studio/blob/main/ui/views/sidebar_cohort_nav.py))
 
-- Write <rater>_qc_scores.tsv (see [utils/export.py](https://github.com/nipoppy/qc-studio/blob/main/ui/utils/export.py))
+- Write `<rater>_<pipeline>_<task>_qc_status.tsv` (see [utils/export.py](https://github.com/nipoppy/qc-studio/blob/main/ui/utils/export.py))
      - Handle overwrite / append
 
 
