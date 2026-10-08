@@ -38,14 +38,14 @@ Open `http://localhost:8501` on a browser.
 2. **🖼️ Display Panels** — choose which panels to show, and set the montage grid's maximum rows and columns. At least one panel is required.
 3. **📤 Upload Existing QC File** — optional. Pick a previous results or checkpoint file to resume where you left off.
 
-The sidebar lets you choose the QC task to rate and the [default rating](ratings.md#default-rating)
+The sidebar lets you choose the QC task to rate and the [default rating](../guides/ratings.md#default-rating)
 preselected on unrated pages.
 
 Press **Continue to QC 🚀**.
 
 **QC viewer** — one page per (participant, session):
 
-- Left sidebar: **▶️ Play** / **⏸️ Pause** for [Autoplay](autoplay.md), **◀️ Previous** /
+- Left sidebar: **▶️ Play** / **⏸️ Pause** for [Autoplay](../guides/autoplay.md), **◀️ Previous** /
   **Next ▶️**, the page counter.
 - Main area: the selected panels for the task, then **📊 Rate** with choices and a notes box.
 
@@ -62,7 +62,7 @@ The demo is just a wrapper around this command.
 
 ## Next steps
 
-- [Configuration](configuration.md) — every flag, the `qc.json` schema, substitutions, and output columns.
-- [Rating schemes](ratings.md) — single and multi-facet ratings.
-- [Autoplay](autoplay.md) — timed auto-advance for fast-pass review of large cohorts.
-- [Architecture](architecture.md) — how the code is organized, if you plan to contribute.
+- [Configuration](../guides/configuration.md) — every flag, the `qc.json` schema, substitutions, and output columns.
+- [Rating schemes](../guides/ratings.md) — single and multi-facet ratings.
+- [Autoplay](../guides/autoplay.md) — timed auto-advance for fast-pass review of large cohorts.
+- [Architecture](../development/architecture.md) — how the code is organized, if you plan to contribute.

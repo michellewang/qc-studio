@@ -67,4 +67,4 @@ make -C docs html
 
 ## Next steps
 
-Proceed to the [Quickstart](quickstart.md) to run a demo, or read [Configuration](configuration.md) first if you want to understand the flags.
+Proceed to the [Quickstart](quickstart.md) to run a demo, or read [Configuration](../guides/configuration.md) first if you want to understand the flags.

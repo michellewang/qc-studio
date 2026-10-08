@@ -27,7 +27,7 @@ extensions = [
     "sphinxcontrib.mermaid",
 ]
 
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+exclude_patterns = ["Thumbs.db", ".DS_Store"]
 
 # Cross-references to objects that are not documented are left unresolved
 # rather than failing the build
@@ -36,13 +36,13 @@ nitpicky = False
 # -- Options for HTML output -------------------------------------------------
 
 html_theme = "furo"
-html_static_path = ["_static"]
+html_static_path = ["../_static"]
 html_css_files = ["custom.css"]
 
 html_theme_options = {
     "source_repository": "https://github.com/nipoppy/qc-studio",
     "source_branch": "main",
-    "source_directory": "docs",
+    "source_directory": "docs/source/",
     "footer_icons": [
         {
             "name": "GitHub",

@@ -7,10 +7,10 @@ tab-separated table.
 
 ## Start here
 
-- **[Overview](overview.md)** — what QC-Studio does, the ideas behind it, and the vocabulary you
+- **[Overview](overview/overview.md)** — what QC-Studio does, the ideas behind it, and the vocabulary you
   need to read the rest of the documentation.
-- **[Installation](installation.md)** — set up a working environment from a clean machine.
-- **[Quickstart](quickstart.md)** — run a bundled demo against the sample dataset in a couple of
+- **[Installation](overview/installation.md)** — set up a working environment from a clean machine.
+- **[Quickstart](overview/quickstart.md)** — run a bundled demo against the sample dataset in a couple of
   commands and take your first QC ratings.
 
 ```{toctree}
@@ -21,9 +21,9 @@ titlesonly:
 hidden:
 includehidden:
 ---
-overview
-installation
-quickstart
+overview/overview
+overview/installation
+overview/quickstart
 ```
 
 ```{toctree}
@@ -34,9 +34,9 @@ titlesonly:
 hidden:
 includehidden:
 ---
-configuration
-ratings
-autoplay
+guides/configuration
+guides/ratings
+guides/autoplay
 ```
 
 ```{toctree}
@@ -47,6 +47,6 @@ titlesonly:
 hidden:
 includehidden:
 ---
-architecture
-dev_plan
+development/architecture
+development/dev_plan
 ```

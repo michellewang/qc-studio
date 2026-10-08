@@ -232,7 +232,7 @@ Example configuration files are available in the [`pipelines/` directory](https:
 
 ## See also
 
-- [Quickstart](quickstart.md) — the flags in context, running a demo.
+- [Quickstart](../overview/quickstart.md) — the flags in context, running a demo.
 - [Rating schemes](ratings.md) — single and multi-facet ratings.
 - [Autoplay](autoplay.md) — the timed auto-advance settings.
-- [Architecture](architecture.md) — where each configuration value is read in the code.
+- [Architecture](../development/architecture.md) — where each configuration value is read in the code.
