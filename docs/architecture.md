@@ -43,7 +43,8 @@ ui/
 │   ├── config.py                # QC config parsing
 │   ├── data_loaders.py          # Data loading and file I/O
 │   ├── image_processing.py      # Image montage creation
-│   └── export.py                # CSV export
+│   ├── path_helpers.py          # Output file naming helpers
+│   └── export.py                # TSV export
 │
 └── tests/                        # Comprehensive Test Suite
     ├── conftest.py              # Shared test fixtures
@@ -118,11 +119,12 @@ Pages represent complete, full-width views shown at different stages of the QC w
 **Responsibility**: Onboarding and initial QC session configuration
 
 **Data Flow**:
-1. User enters rater information
-2. User selects which panels to display (Niivue, Montage, IQM)
-3. User optionally uploads CSV of previous QC records
-4. SessionManager stores all state
-5. Continue to QC viewers page
+1. User enters rater information (if needed)
+2. User selects the QC task and default rating in the sidebar
+3. User selects which panel(s) to display (Niivue, Montage, IQM)
+4. User optionally loads a previous results or checkpoint file
+5. SessionManager stores all state
+6. Continue to QC viewers page
 
 ---
 
@@ -131,8 +133,8 @@ Pages represent complete, full-width views shown at different stages of the QC w
 
 **Data Flow**:
 1. Display number of participants reviewed
-2. Show QC statistics (PASS/FAIL/UNCERTAIN counts)
-3. Offer CSV export with duplicate handling
+2. Show subject-level QC statistics, plus facet-level statistics for multi-facet tasks
+3. Offer TSV export with duplicate handling (one file per QC task)
 4. Navigation back to landing page
 
 ---
@@ -226,7 +228,7 @@ It centralizes layout ratios, visibility decisions, and panel sizing rules.
 
 **Exports**: All model classes for backward-compatible imports
 ```python
-from models import QCRecord, QCTask, QCConfig, MetricQC, QCDecision, QCStatusRow
+from models import QCRecord, QCTask, QCConfig, RatingConfig, MetricQC, QCDecision, QCStatusRow
 ```
 
 ---
@@ -260,6 +262,14 @@ It builds grid montages from loaded images and applies sizing/layout rules for d
 **Responsibility**: Export QC results to standardized formats
 
 It serializes QC records for export, including duplicate-handling logic when requested.
+Multi-facet ratings are written as one row per facet.
+
+---
+
+#### `utils/path_helpers.py`
+**Responsibility**: Consistent naming of output files
+
+It builds the names of status and checkpoint files from the rater, pipeline and QC task.
 
 ---
 
@@ -282,7 +292,7 @@ flowchart LR
     landingCheck -- No --> landingView[views/landing_page.py]
     landingView --> collectRater[Collect rater info]
     collectRater --> selectPanels[Select panels and optional defaults]
-    selectPanels --> uploadPrevious[Optional CSV upload]
+    selectPanels --> uploadPrevious[Optional import of previous results]
     uploadPrevious --> landingDone[Set landing page complete]
     landingDone --> appMain[app.py main flow]
 
