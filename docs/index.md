@@ -35,6 +35,7 @@ hidden:
 includehidden:
 ---
 configuration
+ratings
 autoplay
 ```
 
