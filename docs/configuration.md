@@ -24,13 +24,14 @@ You can also read the built-in help with `python ui/main.py --help`.
 | `--dataset_dir` | yes | — | Path to the dataset root. **Every relative path inside `qc.json` resolves against this directory.** |
 | `--participant_list` | yes | — | Path to a TSV listing the participants to QC. See [Participant list](#participant-list-tsv). |
 | `--qc_pipeline` | yes | — | Pipeline name being reviewed. Recorded in the exported `pipeline` column; also used in checkpoint/session file names. |
-| `--qc_task` | yes | — | One QC task key from `qc.json`, **or the literal value `all`** to show every task on one scrollable page. |
+| `--qc_task` | yes | — | One QC task key from `qc.json`, **or the literal value `all`** to show every task on one scrollable page. See [One task or all of them](#one-task-or-all-of-them). |
 | `--output_dir` | yes | — | Directory for session state, results, and checkpoints. Created on demand. |
 | `--qc_json` | yes | — | Path to the QC configuration JSON describing what to display. |
 | `--session_list` | no | `null` | Comma-separated BIDS session labels, for example `ses-01,ses-02`. |
+| `--rater_id` | no | `null` | Rater name or ID used to pre-fill the landing page. |
+| `--default_qc_rating` | no | `PASS` | Rating preselected on unrated pages: `PASS`, `FAIL`, `UNCERTAIN` or `None`. See [Default rating](ratings.md#default-rating). |
 
-There are no other flags. Everything else is configured through `qc.json`, the environment, or
-the landing page.
+Everything else is configured through `qc.json`, the environment, or the landing page.
 
 ## Participant list (TSV)
 
@@ -99,6 +100,7 @@ The schema is defined by the `QCTask` model in [`ui/models/qc_models.py`](https:
 | `iqm_path` | path or list of paths | no | IQM sources: TSV/CSV distribution tables or JSON metric files, one entry per pipeline source. |
 | `montage_max_rows` | integer, 1–10 | no | Default maximum grid rows. Omit for automatic layout. |
 | `montage_max_cols` | integer, 1–10 | no | Default maximum grid columns. Omit for automatic layout. |
+| `rating` | object | no | See [Rating schemes](ratings.md). |
 
 ### Path substitutions
 
@@ -112,8 +114,10 @@ Placeholders in `qc.json` are textually replaced with values known for the curre
 
 ### One task or all of them
 
-`qc.json` can define several tasks. Use `--qc_task` to select the one to run.
-Setting `--qc_task all` will put all tasks on one page.
+`qc.json` can define several tasks. Use `--qc_task` to select the one to start with;
+you can switch to another task from the landing page sidebar.
+
+Setting `--qc_task all` puts every task on one page.
 
 ## Environment variables
 
@@ -137,7 +141,14 @@ persist across browser sessions.
 | QC experience level | `Beginner (< 1 year)`, `Intermediate (1-5 years)`, `Expert (>5 years)` | `rater_experience` |
 | Fatigue level | `Not at all`, `A bit tired`, `Very tired` | `rater_fatigue` |
 | Screen size (diagonal, inches) | `14 or less`, `15-20`, `21-25`, `26-30`, `31 or above`, `Unknown` | `rater_screen_size` |
-| [Autoplay](autoplay.md) duration | 2–10 seconds, default 5 | Nowhere |
+| [Autoplay](autoplay.md) duration | 5–15 seconds, default 10 | Nowhere |
+
+### QC task and default rating
+
+The landing page sidebar also lets you:
+
+- choose which QC task to rate
+- choose the [default rating](ratings.md#default-rating) preselected on unrated pages
 
 ### Display panels
 
@@ -145,21 +156,21 @@ Select which panel(s) are active.
 
 | Panel | Default |
 |-------|---------|
-| 🧠 3D MRI Viewer (Niivue) | on |
-| 📊 Montage | on |
-| 📈 QC Metrics | off |
+| 3D MRI (Niivue) | on |
+| Montage | on |
+| QC Metrics | off |
 
 ### Montage grid
 
-**🎨 Montage Grid Settings** lets you set maximum rows and columns (1–10).
+**Montage Grid Settings** lets you set maximum rows and columns (1–10).
 Choosing **Auto-calculate** will derive a near-square layout from the number of images.
 
 ### Saving your work
 
 | Action | Where it lands |
 |--------|----------------|
-| **🏁 Create checkpoint** | `<output_dir>/checkpoints/` as a timestamped snapshot |
-| **💾 Export final results** | Anywhere you choose; defaults to `<output_dir>/<rater>_<task>_status.tsv` |
+| **🏁 Create checkpoint** | `<output_dir>/checkpoints/<rater>_<pipeline>_<task>_checkpoint_<timestamp>.tsv` |
+| **💾 Export Final Results** | Anywhere you choose; defaults to `<output_dir>/<rater>_<pipeline>_<task>_qc_status.tsv` |
 
 ## Exported results (TSV)
 
@@ -178,8 +189,12 @@ Results are tab-separated with a header row. Columns always appear in this order
 | 9 | `rater_experience` | Rater experience level |
 | 10 | `rater_fatigue` | Rater fatigue level |
 | 11 | `rater_screen_size` | Rater monitor size band |
-| 12 | `final_qc` | QC rating |
-| 13 | `notes` | Free text |
+| 12 | `final_qc` | QC rating (for multi-facet tasks, the [overall rating](ratings.md#multi-facet-rating-interface)) |
+| 13 | `facet` | Facet name; empty for single-rating tasks |
+| 14 | `rating_value` | Rating for that facet; empty for single-rating tasks |
+| 15 | `notes` | Free text |
+
+For [multi-facet tasks](ratings.md), each facet is written as its own row.
 
 ### Resuming a session
 
@@ -192,5 +207,6 @@ Example configuration files are available in the [`pipelines/` directory](https:
 ## See also
 
 - [Quickstart](quickstart.md) — the flags in context, running a demo.
+- [Rating schemes](ratings.md) — single and multi-facet ratings.
 - [Autoplay](autoplay.md) — the timed auto-advance settings.
 - [Architecture](architecture.md) — where each configuration value is read in the code.
