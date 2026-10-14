@@ -65,6 +65,15 @@ pip install -r docs/requirements.txt
 make -C docs html
 ```
 
+The built site is written to `docs/_build/html`. To view it, open `docs/_build/html/index.html`
+in a web browser, or serve it locally and browse to `http://localhost:8000`:
+
+```bash
+python -m http.server 8000 --directory docs/_build/html
+```
+
+Re-run `make -C docs html` and refresh the page after editing the docs.
+
 ## Next steps
 
 Proceed to the [Quickstart](quickstart.md) to run a demo, or read [Configuration](../guides/configuration.md) first if you want to understand the flags.

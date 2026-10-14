@@ -25,9 +25,9 @@ You can also read the built-in help with `python ui/main.py --help`.
 | `--participant_list` | yes | — | Path to a TSV listing the participants to QC. See [Participant list](#participant-list-tsv). |
 | `--qc_pipeline` | yes | — | Pipeline name being reviewed. Recorded in the exported `pipeline` column; also used in checkpoint/session file names. |
 | `--qc_task` | yes | — | One QC task key from `qc.json`, **or the literal value `all`** to show every task on one scrollable page. See [One task or all of them](#one-task-or-all-of-them). |
-| `--output_dir` | yes | — | Directory for session state, results, and checkpoints. Created on demand. |
+| `--output_dir` | yes | — | Directory for results and checkpoints. Created on demand. |
 | `--qc_json` | yes | — | Path to the QC configuration JSON describing what to display. |
-| `--session_list` | no | `null` | Comma-separated BIDS session labels, for example `ses-01,ses-02`. |
+| `--session_list` | see [Session labels](#session-labels) | `null` | Comma-separated BIDS session labels, for example `ses-01,ses-02`, or `none` if the dataset has no sessions. |
 | `--rater_id` | no | `null` | Rater name or ID used to pre-fill the landing page. |
 | `--default_qc_rating` | no | `PASS` | Rating preselected on unrated pages: `PASS`, `FAIL`, `UNCERTAIN` or `None`. See [Default rating](ratings.md#default-rating). |
 
@@ -59,13 +59,11 @@ sub-CMH0001	ses-01
 sub-CMH0001	ses-02
 ```
 
-Alternatively, session labels can be specified via the `--session_list` flag.
+Otherwise, session labels must be specified via the `--session_list` flag
+(for example `--session_list ses-01,ses-02`). Each participant is then combined with each session.
 
-If session labels are not specified in either of these ways,
-QC-Studio discovers sessions by asking PyBIDS for every session under `--dataset_dir`.
-
-- If sessions are found, it uses them and prints the list to stderr.
-- If the dataset has no session level, the cohort is one page per participant with no session.
+Sessions are not discovered automatically. If the dataset has no session level,
+pass `--session_list none`; QC-Studio then shows one page per participant with no session.
 
 ## `qc.json`
 
@@ -75,14 +73,19 @@ QC-Studio discovers sessions by asking PyBIDS for every session under `--dataset
 
 ```json
 {
-  "sdc_wf_qc": {
-    "display_name": "Susceptibility distortion correction (SDC)",
-    "base_mri_image_path": "bids/[[NIPOPPY_BIDS_PARTICIPANT_ID]]/[[NIPOPPY_BIDS_SESSION_ID]]/func/[[NIPOPPY_BIDS_PARTICIPANT_ID]]_[[NIPOPPY_BIDS_SESSION_ID]]_task-*_run-*_bold.nii.gz",
-    "montage_path": "derivatives/fmriprep/[[NIPOPPY_BIDS_PARTICIPANT_ID]]/figures/[[NIPOPPY_BIDS_PARTICIPANT_ID]]_[[NIPOPPY_BIDS_SESSION_ID]]_task-*_run-*_desc-sdc_bold.svg",
+  "fmriprep_anat_qc": {
+    "display_name": "fMRIPrep anatomical preproc workflow",
+    "base_mri_image_path": "derivatives/fmriprep/[[NIPOPPY_BIDS_PARTICIPANT_ID]]/[[NIPOPPY_BIDS_SESSION_ID]]/anat/[[NIPOPPY_BIDS_PARTICIPANT_ID]]_[[NIPOPPY_BIDS_SESSION_ID]]_run-1_desc-preproc_T1w.nii.gz",
+    "overlay_mri_image_path": "derivatives/fmriprep/[[NIPOPPY_BIDS_PARTICIPANT_ID]]/[[NIPOPPY_BIDS_SESSION_ID]]/anat/[[NIPOPPY_BIDS_PARTICIPANT_ID]]_[[NIPOPPY_BIDS_SESSION_ID]]_run-1_desc-brain_mask.nii.gz",
+    "montage_path": "derivatives/fmriprep/[[NIPOPPY_BIDS_PARTICIPANT_ID]]/figures/[[NIPOPPY_BIDS_PARTICIPANT_ID]]_[[NIPOPPY_BIDS_SESSION_ID]]_run-1_space-MNI152NLin2009cAsym_T1w.svg",
     "iqm_path": [
-      "derivatives/mriqc/group_T1w.tsv",
-      "derivatives/mriqc/group_bold.tsv"
-    ]
+      "derivatives/mriqc/group_T1w.tsv"
+    ],
+    "rating": {
+      "type": "multi",
+      "scale": ["PASS", "FAIL", "UNCERTAIN"],
+      "facets": ["Cropped", "Aliasing", "Motion", "Susceptibility", "Ringing", "Registration"]
+    }
   }
 }
 ```
@@ -94,12 +97,10 @@ The schema is defined by the `QCTask` model in [`ui/models/qc_models.py`](https:
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `display_name` | string | no | Human-readable label shown in the UI. Falls back to the key when absent. |
-| `base_mri_image_path` | path | no | Base MRI for the Niivue 3D viewer. Glob patterns allowed. |
+| `base_mri_image_path` | path | no | Base MRI for the 3D MRI panel (NiiVue viewer). Glob patterns allowed. |
 | `overlay_mri_image_path` | path | no | Overlay drawn on top of the base MRI. One overlay maximum. |
 | `montage_path` | path or list of paths | no | 2D montage images for the Montage panel: **SVG, PNG, JPG/JPEG only**. |
 | `iqm_path` | path or list of paths | no | IQM sources: TSV/CSV distribution tables or JSON metric files, one entry per pipeline source. |
-| `montage_max_rows` | integer, 1–10 | no | Default maximum grid rows. Omit for automatic layout. |
-| `montage_max_cols` | integer, 1–10 | no | Default maximum grid columns. Omit for automatic layout. |
 | `rating` | object | no | Rating scheme for the task. See [Rating fields](#rating-fields). |
 
 ### Rating fields
@@ -113,24 +114,11 @@ The optional `rating` object sets how a task is rated (see [Rating schemes](rati
 | `facets` | The facet names to rate (used when `type` is `"multi"`) | none |
 
 If `type` is `"multi"` but no facets are listed, the task falls back to a single rating.
-
-Example of a multi-facet task:
-
-```json
-"FS_preproc_workflow": {
-    "base_mri_image_path": "derivatives/fmriprep/[[NIPOPPY_BIDS_PARTICIPANT_ID]]/...",
-    "montage_path": ["derivatives/fmriprep/[[NIPOPPY_BIDS_PARTICIPANT_ID]]/figures/..."],
-    "rating": {
-        "type": "multi",
-        "scale": ["PASS", "FAIL", "UNCERTAIN"],
-        "facets": ["Cropped", "Aliasing", "Motion", "Susceptibility", "Ringing", "Inhomogeneity"]
-    }
-}
-```
+See the [example above](#structure) for a multi-facet task.
 
 ### Path substitutions
 
-Placeholders in `qc.json` are textually replaced with values known for the current cohort page
+Placeholders in `qc.json` are textually replaced with values known for the current QC record
 **before** Pydantic validation runs.
 
 | Placeholder | Replaced with | Example |
@@ -167,7 +155,7 @@ persist across browser sessions.
 | QC experience level | `Beginner (< 1 year)`, `Intermediate (1-5 years)`, `Expert (>5 years)` | `rater_experience` |
 | Fatigue level | `Not at all`, `A bit tired`, `Very tired` | `rater_fatigue` |
 | Screen size (diagonal, inches) | `14 or less`, `15-20`, `21-25`, `26-30`, `31 or above`, `Unknown` | `rater_screen_size` |
-| [Autoplay](autoplay.md) duration | 5–15 seconds, default 10 | Nowhere |
+| [Autoplay](autoplay.md) duration | Seconds | Nowhere |
 
 ### QC task and default rating
 
@@ -180,11 +168,11 @@ The landing page sidebar also lets you:
 
 Select which panel(s) are active.
 
-| Panel | Default |
-|-------|---------|
-| 3D MRI (Niivue) | on |
-| Montage | on |
-| QC Metrics | off |
+| Panel | Default | Contents |
+|-------|---------|----------|
+| **3D MRI (Niivue)** | on | Interactive 3D rendering of a base NIfTI (and optional overlay) in the NiiVue viewer |
+| **Montage** | on | 2D image montage for the task |
+| **QC Metrics** | off | IQM distribution plots and a metrics table |
 
 ### Montage grid
 
@@ -193,10 +181,10 @@ Choosing **Auto-calculate** will derive a near-square layout from the number of 
 
 ### Saving your work
 
-| Action | Where it lands |
-|--------|----------------|
-| **🏁 Create checkpoint** | `<output_dir>/checkpoints/<rater>_<pipeline>_<task>_checkpoint_<timestamp>.tsv` |
-| **💾 Export Final Results** | Anywhere you choose; defaults to `<output_dir>/<rater>_<pipeline>_<task>_qc_status.tsv` |
+| Action | Output | Where it lands |
+|--------|--------|----------------|
+| **🏁 Create checkpoint** | Checkpoint: a periodic snapshot of your work with a unique timestamp (never overwritten) | `<output_dir>/checkpoints/<rater>_<pipeline>_<task>_checkpoint_<timestamp>.tsv` |
+| **💾 Export Final Results** | QC status TSV: the final QC ratings file (overwritten on user confirmation) | Anywhere you choose; defaults to `<output_dir>/<rater>_<pipeline>_<task>_qc_status.tsv` |
 
 ## Exported results (TSV)
 
@@ -206,8 +194,8 @@ Results are tab-separated with a header row. Columns always appear in this order
 |---|--------|---------|
 | 1 | `pipeline` | Value of `--qc_pipeline` |
 | 2 | `qc_task` | QC task key |
-| 3 | `participant_id` | BIDS subject ID, with `sub-` prefix |
-| 4 | `session_id` | Session label, or empty for session-less cohorts |
+| 3 | `participant_id` | BIDS participant ID, with `sub-` prefix |
+| 4 | `session_id` | Session label, or empty for datasets without sessions |
 | 5 | `task_id` | Reserved; usually empty |
 | 6 | `run_id` | Reserved; usually empty |
 | 7 | `timestamp` | `YYYY-MM-DD HH:MM:SS` when the rating was recorded |
@@ -224,15 +212,11 @@ For [multi-facet tasks](ratings.md), each facet is written as its own row.
 
 ### Resuming a session
 
-Upload a previous `<rater>_status.tsv` (CSV and TSV are both accepted) from the landing page.
-
-## Bundled pipeline configurations
-
-Example configuration files are available in the [`pipelines/` directory](https://github.com/nipoppy/qc-studio/blob/main/pipelines).
+Upload a previous `<rater>_<pipeline>_<task>_qc_status.tsv` (CSV and TSV are both accepted) from the landing page.
 
 ## See also
 
 - [Quickstart](../overview/quickstart.md) — the flags in context, running a demo.
 - [Rating schemes](ratings.md) — single and multi-facet ratings.
 - [Autoplay](autoplay.md) — the timed auto-advance settings.
-- [Architecture](../development/architecture.md) — where each configuration value is read in the code.
+- [Software Architecture](../development/architecture.md) — where each configuration value is read in the code.

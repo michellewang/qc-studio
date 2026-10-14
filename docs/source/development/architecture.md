@@ -1,8 +1,6 @@
-# Architecture
+# Software Architecture
 
-## Overview
-
-QC-Studio is a Streamlit-based quality control application for neuroimaging data. This document describes the refactored architecture, module organization, and data flow.
+This document describes the software architecture, module organization, and data flow.
 
 ---
 
@@ -13,10 +11,12 @@ ui/
 ├── app.py                        # Streamlit App Entry (Main Application)
 ├── main.py                       # CLI Entry Point
 ├── constants.py                  # Core configuration and message strings
+├── _niivue_viewer_fallback.py    # Fallback when niivue-streamlit is not installed
 │
 ├── components/                   # Reusable UI Components
 │   ├── __init__.py              # Package exports
 │   ├── qc_viewer.py             # QC viewer orchestration
+│   └── iqm_viewer.py            # IQM distribution plots and metrics tables
 │
 ├── pages/                        # Streamlit multipage sidebar (thin entrypoints → views/)
 │   ├── 1_Landing_Page.py
@@ -35,15 +35,18 @@ ui/
 │
 ├── models/                       # Data Models & Types
 │   ├── __init__.py              # Clean exports (backward compatible)
-│   ├── qc_models.py             # Pydantic models
-│   └── README.md                # Model documentation
+│   └── qc_models.py             # Pydantic models
 │
 ├── utils/                        # Utility Functions by Domain
 │   ├── __init__.py
+│   ├── cohort.py                # Participant × session cohort rows
 │   ├── config.py                # QC config parsing
 │   ├── data_loaders.py          # Data loading and file I/O
 │   ├── image_processing.py      # Image montage creation
+│   ├── iqm_distribution_config.py # IQM metric groups per modality
+│   ├── navigation.py            # Shared page navigation helpers
 │   ├── path_helpers.py          # Output file naming helpers
+│   ├── reference_data.py        # Reference IQM data download and filtering
 │   └── export.py                # TSV export
 │
 └── tests/                        # Comprehensive Test Suite
@@ -305,7 +308,7 @@ flowchart LR
     sidebarNav --> choosePage[User selects subject or page]
     choosePage --> collectRatings[Collect QC ratings and notes]
     collectRatings --> saveMove[Save records and move prev or next]
-    saveMove --> morePages{More cohort pages?}
+    saveMove --> morePages{More QC-record pages?}
 
     morePages -- Yes --> viewerPage
     morePages -- No --> resultsView[views/congratulations_page.py]
@@ -352,82 +355,3 @@ flowchart TD
     congrats --> export
     export --> models
 ```
-
----
-
-## Troubleshooting
-
-### Common Issues
-
-**Issue**: Panel selection not persisting
-- **Check**: `SessionManager.set_panel_selection()` called after checkbox
-- **Solution**: Verify SessionManager initialization and session state patching in tests
-
-**Issue**: Niivue viewer not displaying
-- **Check**: `load_mri_data()` returns valid base_mri_image_bytes
-- **Solution**: Verify qc_config path is correct, MRI file exists
-
-**Issue**: Tests failing with "expected X to have been called"
-- **Check**: Mock setup in conftest.py
-- **Solution**: These are pre-existing Streamlit mocking issues, not regressions
-
-**Issue**: New manager method not working
-- **Check**: Is it calling `st.session_state` correctly?
-- **Solution**: Follow pattern from existing methods, use SESSION_KEYS constant
-
----
-
-## Testing Guide
-
-### Running Tests
-
-**All tests**:
-```bash
-bash run_tests.sh all
-```
-
-**Specific test file**:
-```bash
-pytest ui/tests/test_session_manager.py -v
-```
-
-**Specific test class**:
-```bash
-pytest ui/tests/test_session_manager.py::TestRaterMethods -v
-```
-
-**With coverage report**:
-```bash
-pytest ui/tests/ --cov=ui --cov-report=html
-```
-
-### Writing New Tests
-
-**Template**:
-```python
-class TestNewFeature:
-    """Tests for new feature."""
-
-    def test_basic_functionality(self):
-        """Test basic operation."""
-        # Arrange
-        component = SomeComponent()
-
-        # Act
-        result = component.do_something()
-
-        # Assert
-        assert result == expected_value
-
-    def test_edge_case(self):
-        """Test edge case behavior."""
-        # Similar structure
-```
-
-
-## References
-
-- **Streamlit Documentation**: https://docs.streamlit.io/
-- **Pytest Documentation**: https://docs.pytest.org/
-- **Python Design Patterns**: https://refactoring.guru/design-patterns
-- **Session State Management**: Streamlit docs on st.session_state

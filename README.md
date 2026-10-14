@@ -1,8 +1,8 @@
 # QC-Studio
 
-QC-Studio is a web-based quality control (QC) application for neuroimaging data. It gives raters one place to look at raw BIDS data, processed pipeline derivatives, and image quality metrics (IQMs), assign a structured QC decision with optional notes, and export the result as a tab-separated table. See the [Overview](docs/source/overview/overview.md) for the design and vocabulary.
+QC-Studio is a web-based quality control (QC) application for neuroimaging data. It gives raters a unified, portable interface (i.e. a web browser) to review raw imaging data, processed pipeline derivatives, and image quality metrics (IQMs), and export ratings as a tab-separated table. See [Why QC-Studio](docs/source/overview/why_qc-studio.md) for the motivation and vocabulary.
 
-[See design overview →](docs/source/development/dev_plan.md)
+[See design overview →](docs/source/development/design_reqs.md)
 
 ## 🎯 Goals
 
@@ -14,8 +14,8 @@ QC-Studio is a web-based quality control (QC) application for neuroimaging data.
 
 | Document | Purpose | Audience |
 |----------|---------|----------|
-| [architecture.md](docs/source/development/architecture.md) | Complete architecture overview | All |
-| [dev_plan.md](docs/source/development/dev_plan.md) | Product scope and design overview | Contributors |
+| [architecture.md](docs/source/development/architecture.md) | Software architecture: code modules and data flow | All |
+| [design_reqs.md](docs/source/development/design_reqs.md) | Design requirements | Contributors |
 | [ui/tests/README.md](ui/tests/README.md) | Test suite usage and testing patterns | Developers |
 | [SCanD QC guidelines](https://github.com/TIGRLab/SCanD_project/tree/Fir/docs) | Pipeline QC pass/fail criteria (fMRIPrep, FreeSurfer, QSIPrep, XCP-D, NODDIreg) | Raters / supervisors |
 
@@ -38,15 +38,15 @@ uv pip install -r requirements.txt
 # Install niivue-streamlit component
 uv pip install --index-url https://test.pypi.org/simple/ --no-deps niivue-streamlit
 
-# Run the app
-streamlit run ui/main.py
+# Run the bundled fMRIPrep demo, then open http://localhost:8501
+./fmriprep_demo.sh
 ```
 
-To see QC-Studio end to end with a bundled demo (`./fmriprep_demo.sh`), follow the [Quickstart](docs/source/overview/quickstart.md). For full installation instructions, see [Installation](docs/source/overview/installation.md).
+See the [Quickstart](docs/source/overview/quickstart.md) for a walkthrough of the demo, and [Configuration](docs/source/guides/configuration.md) to run QC-Studio on your own data. For full installation instructions, see [Installation](docs/source/overview/installation.md).
 
 ## 📄 License
 
-See LICENSE file for details.
+See the [LICENSE](LICENSE) file for details.
 
 ## 🤝 Contributing
 
@@ -54,9 +54,8 @@ Contributions are welcome! Please:
 
 1. Read the [architecture.md](docs/source/development/architecture.md) for design patterns
 2. Check [ui/tests/README.md](ui/tests/README.md) for testing practices
-3. Follow the code organization described above
-4. Set up the development tooling as described [here](docs/source/overview/installation.md#developer-setup)
-5. Ensure all tests pass before submitting PR
+3. Set up the development tooling as described [here](docs/source/overview/installation.md#developer-setup)
+4. Ensure all tests pass before submitting PR
 
 Before pushing, run all pre-commit checks. This includes the same UI test command used in CI.
 

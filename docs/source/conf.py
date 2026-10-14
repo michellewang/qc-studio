@@ -20,10 +20,6 @@ release = ""
 extensions = [
     "myst_parser",
     "sphinx_copybutton",
-    "sphinx.ext.autodoc",
-    "sphinx.ext.extlinks",
-    "sphinx.ext.intersphinx",
-    "sphinx.ext.napoleon",
     "sphinxcontrib.mermaid",
 ]
 
@@ -54,30 +50,6 @@ html_theme_options = {
 }
 
 html_title = "QC-Studio"
-
-# -- Intersphinx configuration ------------------------------------------------
-
-intersphinx_mapping = {
-    "python": ("https://docs.python.org/3", None),
-    "pandas": ("https://pandas.pydata.org/pandas-docs/stable/", None),
-}
-
-# -- extlinks configuration --------------------------------------------------
-# Compact shorthand for links into the repository
-extlinks = {
-    "source": (
-        "https://github.com/nipoppy/qc-studio/blob/main/%s",
-        "%s",
-    ),
-    "raw": (
-        "https://raw.githubusercontent.com/nipoppy/qc-studio/main/%s",
-        "%s",
-    ),
-    "issue": (
-        "https://github.com/nipoppy/qc-studio/issues/%s",
-        "#%s",
-    ),
-}
 
 # -- MyST configuration -------------------------------------------------------
 

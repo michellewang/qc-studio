@@ -5,7 +5,7 @@ Each QC task in `qc.json` is rated using one of two schemes:
 | Scheme | What you rate | Typical use |
 |--------|---------------|-------------|
 | **Single** (default) | One overall rating per QC task | Quick pass/fail screening |
-| **Multi-facet** | One rating per *facet*, i.e. a named aspect of the image | Detailed QC, e.g. rating motion, ringing and cropping separately |
+| **Multi-facet** | One rating per *facet*, i.e. a named aspect of the image | Detailed QC, e.g. rating motion, ringing and cropping separately, or rating multiple brain regions from the same QC task |
 
 ## Configuration
 
@@ -15,12 +15,12 @@ See [Rating fields](configuration.md#rating-fields) for the available options an
 
 ## Multi-facet rating interface
 
-For a multi-facet task, the **📊 Rate** section of the QC viewer has:
+For a multi-facet task, the **📊 Rate** section of the QC page has:
 
 - one rating choice for each facet
 - an **Apply same rating to all facets** option that sets every facet at once. You can then change individual facets as needed.
 
-Each subject-session pair will also get an overall rating based on the set of facet ratings:
+Each QC record also gets an overall rating based on the set of facet ratings:
 
 | Overall rating | Meaning |
 |----------------|---------|
@@ -29,7 +29,7 @@ Each subject-session pair will also get an overall rating based on the set of fa
 | **All-Uncertain** | Every facet is UNCERTAIN |
 | **Mixed** | Every facet is rated, but not all the same |
 
-In the exported results, each facet is written as a separate row. See [Exported results](configuration.md#exported-results-tsv).
+For how facet ratings are written to the results file, see [Exported results](configuration.md#exported-results-tsv).
 
 ## Default rating
 
