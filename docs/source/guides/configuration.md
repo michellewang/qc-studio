@@ -65,7 +65,7 @@ Otherwise, session labels must be specified via the `--session_list` flag
 Sessions are not discovered automatically. If the dataset has no session level,
 pass `--session_list none`; QC-Studio then shows one page per participant with no session.
 
-## `qc.json`
+## QC-task-config
 
 ### Structure
 
