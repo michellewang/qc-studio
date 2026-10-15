@@ -1,14 +1,12 @@
 # Why QC-Studio
 
-Neuroimaging pipelines produce volumes, figures, and summary metrics for every participant and session.
-Reviewing those outputs usually means opening files by hand, in one tool per output type, and keeping ratings in a spreadsheet.
-That is slow and hard to reproduce.
+Neuroimaging workflows produce variety of data artifacts including volumes, surfaces, networks, tables, figures, and summary metrics that often need to be reviewed for every participant and visit. Reviewing those outputs usually means opening files by hand, in one tool per output type, inspecting them visually, and noting quality ratings in a spreadsheet. This is slow, prone to error, and hard to scale.
 
-QC-Studio aims to simplify the mechanics of this tedious process. It acknowledges that no single QC protocol fits all, and therefore offers the flexibility to define study-, datatype-, and pipeline-specific "QC tasks" (see qc.json).
+QC-Studio simplifies the mechanics of this tedious process. It acknowledges that no single QC protocol fits all, and therefore offers the flexibility to prescribe study-, datatype-, and pipeline-specific "QC tasks" (see qc.json) to ensure analysis-ready datasets are thoroughly checked.
 
-It integrates "visual evidence" from the 3D volumes, 2D montages, and calculated image quality metrics for human auditing.
+In practice, it integrates "visual evidence" from the 3D volumes, 2D montages, and calculated image quality metrics for human auditing - which can be performed both locally and remotely!
 
-***QC Anything, Anywhere, All at Once!***
+We aspire that neuroimagers should be able to ***QC Anything, Anywhere, All at Once!***
 
 ## Vocabulary
 
