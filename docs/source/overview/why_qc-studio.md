@@ -38,4 +38,4 @@ directory for these pipelines:
 - XCP-D
 - NODDIreg
 
-You can also write your own `qc.json` for any other pipeline. See [Configuration](../guides/configuration.md#QC-task-config).
+You can also write your own `qc.json` for any other pipeline. See [Configuration](../guides/configuration.md#qc-task-config).
