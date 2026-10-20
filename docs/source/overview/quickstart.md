@@ -52,9 +52,12 @@ There is one QC page per QC record.
 - The main area shows the selected panels for the task, followed by **📊 Rate**, with the rating
   choices and a notes box.
 
-Click a rating and add notes if needed. Your rating and notes are recorded as soon as you change them,
-so **Next** simply moves on to the next page. If the page shows several QC tasks, rate every task
-before clicking **Next**.
+Click a rating to record it. To add notes, click **Add notes** first, since the notes box stays
+disabled until you do. Notes are saved when you next change a rating or move to another page.
+
+**Next** saves every rating and note on the current page, then moves on. You can move past a page
+without rating it, but the summary page opens only once every page is rated. If the page shows
+several QC tasks, each one needs its own rating.
 
 Ratings are kept in the app's memory until you save them to a file. Click **🏁 Create checkpoint**
 at any time to write a timestamped snapshot to the output directory.

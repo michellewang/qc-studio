@@ -1,11 +1,12 @@
 # Configuration
 
-QC-Studio is configured at four levels, from least to most specific:
+QC-Studio takes three separate inputs:
 
-1. Command-line flags
-2. `qc.json`
-3. Environment variables
-4. In-app settings on the landing page
+- **Command-line flags** set the dataset, participants, pipeline, output location and starting options.
+- **`qc.json`** defines each QC task: which files and panels to show for every QC record.
+- **In-app settings on the landing page** record rater information and display choices. Two of them,
+  the QC task and the default rating, replace the `--qc_task` and `--default_qc_rating` flags for the
+  rest of the session.
 
 ## Command-line reference
 
@@ -31,7 +32,7 @@ You can also read the built-in help with `python ui/main.py --help`.
 | `--rater_id` | no | `null` | Rater name or ID used to pre-fill the landing page. |
 | `--default_qc_rating` | no | `PASS` | Rating preselected on unrated pages: `PASS`, `FAIL`, `UNCERTAIN` or `None`. See [Default rating](ratings.md#default-rating). |
 
-Everything else is configured through `qc.json`, the environment, or the landing page.
+Everything else is configured through `qc.json` or the landing page.
 
 ## Participant list (TSV)
 
@@ -133,15 +134,6 @@ you can switch to another task from the landing page sidebar.
 
 Setting `--qc_task all` puts every task on one page.
 
-## Environment variables
-
-| Variable | Read from | Required when | Effect |
-|----------|-----------|---------------|--------|
-| `REFERENCE_DATA_URL` | Process environment or a `.env` file in the working directory | Only the **Dataset + Reference** IQM mode needs to download data | Base URL of the host serving reference IQM Parquet files |
-
-Cached downloads are written to `.streamlit/reference_cache/` and reused for **seven days**.
-Once a modality is cached, the app runs without `REFERENCE_DATA_URL`.
-
 ## In-app settings
 
 These are set on the landing page and stored in the Streamlit session, not on disk. They do not
@@ -153,7 +145,7 @@ persist across browser sessions.
 |-------|--------|------------|
 | Rater name or ID | Free text | `rater_id` |
 | QC experience level | `Beginner (< 1 year)`, `Intermediate (1-5 years)`, `Expert (>5 years)` | `rater_experience` |
-| Fatigue level | `Not at all`, `A bit tired`, `Very tired` | `rater_fatigue` |
+| Fatigue level | `Not at all`, `A bit tired ☕`, `Very tired ☕☕` | `rater_fatigue` |
 | Screen size (diagonal, inches) | `14 or less`, `15-20`, `21-25`, `26-30`, `31 or above`, `Unknown` | `rater_screen_size` |
 | [Autoplay](autoplay.md) duration | Seconds | Nowhere |
 
