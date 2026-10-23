@@ -41,6 +41,7 @@ includehidden:
 ---
 overview/why_qc-studio
 overview/installation
+overview/glossary
 overview/quickstart
 ```
 
@@ -65,5 +66,5 @@ titlesonly:
 hidden:
 includehidden:
 ---
-development/architecture
 development/design_reqs
+development/architecture

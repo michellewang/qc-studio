@@ -91,6 +91,16 @@ pass `--session_list none`; QC-Studio then shows one page per participant with n
 }
 ```
 
+```{note}
+`[[NIPOPPY_BIDS_PARTICIPANT_ID]]` and `[[NIPOPPY_BIDS_SESSION_ID]]` are substitution variables.
+You write each path once as a template, and QC-Studio fills in the participant and session of
+every QC record as it iterates through the [participant list](#participant-list-tsv) and
+[session labels](#session-labels). For example, with `sub-CMH0001` and `ses-02`, the
+`base_mri_image_path` above resolves to
+`derivatives/fmriprep/sub-CMH0001/ses-02/anat/sub-CMH0001_ses-02_run-1_desc-preproc_T1w.nii.gz`.
+See [Path substitutions](#path-substitutions) for details.
+```
+
 The schema is defined by the `QCTask` model in [`ui/models/qc_models.py`](https://github.com/nipoppy/qc-studio/blob/main/ui/models/qc_models.py).
 
 ### Task fields
