@@ -61,7 +61,7 @@ pre-commit install
 ### Building the documentation locally
 
 ```bash
-pip install -r docs/requirements.txt
+pip install --group docs
 make -C docs html
 ```
 
