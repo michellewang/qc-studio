@@ -16,8 +16,9 @@ load_dotenv()
 from app import app, resolve_qc_tasks
 from components.qc_viewer import AUTOPLAY_RUN_CTX_KEY
 from managers.session_manager import SessionManager
-from constants import SESSION_KEYS
+from constants import SESSION_KEYS, DEFAULT_QC_RATING, DEFAULT_QC_RATING_OPTIONS
 from views.sidebar_cohort_nav import render_sidebar_cohort_subjects
+from utils.path_helpers import sanitize_qc_task_slug
 from utils.cohort import (
     build_qc_cohort,
     normalize_session_id_bids,
@@ -77,6 +78,21 @@ def parse_args(args=None):
         help=("Path to a JSON containing a list of image file paths to be displayed."),
         required=True,
     )
+    parser.add_argument(
+        "--rater_id",
+        dest="rater_id",
+        help=("Optional rater name or ID to pre-populate the landing-page form and greeting."),
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "--default_qc_rating",
+        dest="default_qc_rating",
+        help=("Default preselected QC rating for unrated forms."),
+        required=False,
+        default=DEFAULT_QC_RATING,
+        choices=DEFAULT_QC_RATING_OPTIONS,
+    )
 
     return parser.parse_args(args)
 
@@ -118,13 +134,17 @@ def get_cli_run_context():
             file=sys.stderr,
         )
         raise SystemExit(2)
+    qc_task = args.qc_task
+    if str(qc_task).strip().lower() == "all" and len(qc_tasks) == 1:
+        # "all" with a single task is that task; avoid all-tasks mode file naming.
+        qc_task = qc_tasks[0]
     return {
         "dataset_dir": args.dataset_dir,
         "participant_list": args.participant_list,
         "session_list": args.session_list,
         "session_ids": session_ids,
         "qc_pipeline": args.qc_pipeline,
-        "qc_task": args.qc_task,
+        "qc_task": qc_task,
         "qc_tasks": qc_tasks,
         "qc_config_path": qc_config_path,
         "out_dir": args.out_dir,
@@ -132,6 +152,8 @@ def get_cli_run_context():
         "drop_duplicates": True,
         "participant_ids": participant_ids,
         "qc_cohort": qc_cohort,
+        "rater_id": getattr(args, "rater_id", None),
+        "default_qc_rating": getattr(args, "default_qc_rating", DEFAULT_QC_RATING),
     }
 
 
@@ -151,19 +173,41 @@ def main():
 
     # Initialize session state
     SessionManager.init_session_state()
+    if ctx.get("rater_id"):
+        SessionManager.set_rater_id(ctx["rater_id"])
+    # Seed default rating from CLI only before landing is completed.
+    # After onboarding, keep any user override selected in the landing sidebar.
+    if not SessionManager.is_landing_page_complete():
+        SessionManager.set_default_qc_rating(ctx.get("default_qc_rating", DEFAULT_QC_RATING))
+    cli_all_tasks_mode = str(ctx.get("qc_task", "")).strip().lower() == "all"
+    SessionManager.set_all_tasks_mode_locked(cli_all_tasks_mode)
+    selected_qc_task = SessionManager.get_selected_qc_task()
+    if cli_all_tasks_mode:
+        qc_task = "all"
+        qc_tasks = ctx["qc_tasks"]
+        SessionManager.set_selected_qc_task("all")
+    elif selected_qc_task:
+        qc_task = selected_qc_task
+        qc_tasks = resolve_qc_tasks(selected_qc_task, qc_config_path)
     if not SessionManager.get_qc_session_id():
         SessionManager.set_qc_session_id(datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"))
-    qc_session_label = f"{SessionManager.get_rater_id() or 'rater'}_{qc_pipeline.lower()}_{('all_tasks' if str(qc_task).strip().lower() == 'all' else str(qc_task).strip().lower() or 'unknown_task')}_{SessionManager.get_qc_session_id()}"
+    task_slug = sanitize_qc_task_slug(qc_task)
+    qc_session_label = f"{SessionManager.get_rater_id() or 'rater'}_{qc_pipeline.lower()}_{task_slug}_{SessionManager.get_qc_session_id()}"
     SessionManager.set_qc_session_label(qc_session_label)
     SessionManager.set_qc_session_checkpoint_dir(str((Path(out_dir).expanduser() / "checkpoints").resolve()))
-    task_slug = "all_tasks" if str(qc_task).strip().lower() == "all" else (str(qc_task).strip().lower() or "unknown_task")
+    pipeline_slug = str(qc_pipeline or "").strip().lower() or "qc"
     SessionManager.set_qc_session_active_path(
-        str((Path(out_dir).expanduser() / f"{(SessionManager.get_rater_id() or 'rater')}_{task_slug}_status.tsv").resolve())
+        str((Path(out_dir).expanduser() / f"{(SessionManager.get_rater_id() or 'rater')}_{pipeline_slug}_{task_slug}_qc_status.tsv").resolve())
     )
     SessionManager.compact_duplicate_qc_records_if_needed()
 
     session_id_for_sidebar = qc_cohort[0]["session_id"] if qc_cohort else None
-    qc_tasks = ctx["qc_tasks"]
+    if cli_all_tasks_mode:
+        qc_tasks = ctx["qc_tasks"]
+    elif selected_qc_task:
+        qc_tasks = resolve_qc_tasks(selected_qc_task, qc_config_path)
+    else:
+        qc_tasks = ctx["qc_tasks"]
 
     current_page = st.session_state.get(SESSION_KEYS["current_page"], 1)
     if current_page < 1:

@@ -4,7 +4,7 @@ import pytest
 import streamlit as st
 from unittest.mock import MagicMock, patch
 from managers.session_manager import SessionManager
-from constants import SESSION_KEYS, DEFAULT_PANELS
+from constants import SESSION_KEYS
 
 pytestmark = pytest.mark.unit
 
@@ -213,6 +213,26 @@ class TestQCRecordsMethods:
         assert SessionManager.participant_has_decided_qc("sub-02", "ses-01", "anat_wf_qc") is False
         assert SessionManager.participant_has_decided_qc("sub-01", "ses-01", "other_task") is False
 
+    def test_participant_has_decided_qc_multi_facet(self, mock_session_state):
+        st.session_state = mock_session_state.data
+        SessionManager.init_session_state()
+
+        rec = MagicMock()
+        rec.participant_id = "sub-01"
+        rec.session_id = "ses-01"
+        rec.pipeline = "fsqc"
+        rec.qc_task = "FS_volume_wf_qc"
+        rec.final_qc = None
+        rec.ratings = {
+            "frontal": "PASS",
+            "parietal": "FAIL",
+            "temporal": "UNCERTAIN",
+            "occipital": "PASS",
+        }
+
+        SessionManager.add_qc_record(rec)
+        assert SessionManager.participant_has_decided_qc("sub-01", "ses-01", "FS_volume_wf_qc") is True
+
     def test_set_qc_records(self, mock_session_state):
         """Test setting multiple QC records at once."""
         st.session_state = mock_session_state.data
@@ -234,6 +254,22 @@ class TestQCRecordsMethods:
         SessionManager.set_qc_records(mock_records)
 
         assert SessionManager.get_qc_record_count() == 2
+
+
+class TestMultifacetDerivation:
+    """Tests for multifacet subject-level final QC labels."""
+
+    def test_derive_multifacet_final_qc_all_uncertain(self):
+        ratings = {"frontal": "UNCERTAIN", "parietal": "UNCERTAIN"}
+        assert SessionManager.derive_multifacet_final_qc(ratings) == "All-Uncertain"
+
+    def test_derive_multifacet_final_qc_fail_plus_uncertain(self):
+        ratings = {"frontal": "FAIL", "parietal": "UNCERTAIN"}
+        assert SessionManager.derive_multifacet_final_qc(ratings) == "Mixed"
+
+    def test_derive_multifacet_final_qc_pass_plus_fail_is_mixed(self):
+        ratings = {"frontal": "PASS", "parietal": "FAIL"}
+        assert SessionManager.derive_multifacet_final_qc(ratings) == "Mixed"
 
 
 class TestNotesMethods:

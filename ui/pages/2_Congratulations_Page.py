@@ -30,4 +30,5 @@ show_congratulations_page(
     qc_cohort=qc_cohort or None,
     qc_tasks=ctx["qc_tasks"],
     entrypoint_rel_path="main.py",
+    qc_pipeline=ctx.get("qc_pipeline"),
 )

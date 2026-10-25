@@ -1,9 +1,12 @@
 """Congratulations page component for QC-Studio UI."""
 
 from pathlib import Path
+import re
+import pandas as pd
 import streamlit as st
-from constants import MESSAGES, SUCCESS_MESSAGES, INFO_MESSAGES, SESSION_KEYS, QC_RATINGS
+from constants import MESSAGES, SUCCESS_MESSAGES, INFO_MESSAGES
 from managers.session_manager import SessionManager
+from utils.path_helpers import sanitize_qc_task_slug
 from utils.export import save_qc_results_to_csv
 
 CONGRATS_EXPORT_PATH_KEY = "congrats_export_path"
@@ -22,10 +25,9 @@ def _default_congrats_export_path(
     base_dir = Path(str(out_dir).strip()).expanduser() if out_dir and str(out_dir).strip() else Path(".").expanduser()
     base_dir = base_dir.resolve() if base_dir.is_absolute() else (Path.cwd() / base_dir).resolve()
     rid = str(rater_id).strip().lower() or "rater"
-    task = str(qc_task or "all").strip().lower()
-    if task == "all":
-        task = "all_tasks"
-    filename = f"{rid}_{task}_status.tsv"
+    pipe = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(qc_pipeline or "").strip()).strip("_").lower() or "qc"
+    task = sanitize_qc_task_slug(qc_task or "all")
+    filename = f"{rid}_{pipe}_{task}_qc_status.tsv"
     return str((base_dir / filename).resolve())
 
 
@@ -44,7 +46,14 @@ def _require_overwrite_confirmation(file_path: str | Path, label: str) -> bool:
     return False
 
 
-def _resolve_congrats_export_file_path(out_dir: str, rater_id: str, save_file_path: str | None) -> Path:
+def _resolve_congrats_export_file_path(
+    out_dir: str,
+    rater_id: str,
+    save_file_path: str | None,
+    *,
+    qc_pipeline: str | None = None,
+    qc_task: str | None = None,
+) -> Path:
     """Resolve export destination from optional user input.
 
     If a directory-like path is provided (no suffix), append the default file name.
@@ -53,9 +62,9 @@ def _resolve_congrats_export_file_path(out_dir: str, rater_id: str, save_file_pa
         candidate = Path(str(save_file_path).strip()).expanduser()
         if candidate.suffix:
             return candidate
-        default = _default_congrats_export_path(out_dir, rater_id)
+        default = _default_congrats_export_path(out_dir, rater_id, qc_pipeline=qc_pipeline, qc_task=qc_task)
         return candidate / Path(default).name
-    return Path(_default_congrats_export_path(out_dir, rater_id))
+    return Path(_default_congrats_export_path(out_dir, rater_id, qc_pipeline=qc_pipeline, qc_task=qc_task))
 
 
 def show_congratulations_page(
@@ -70,6 +79,7 @@ def show_congratulations_page(
     qc_cohort: list | None = None,
     qc_tasks: list | None = None,
     entrypoint_rel_path: str | None = None,
+    qc_pipeline: str | None = None,
 ) -> None:
     """Display congratulations (full summary) or a minimal placeholder until all subjects are QC'd.
 
@@ -83,6 +93,7 @@ def show_congratulations_page(
             session_id: BIDS session id for legacy single-session completion checks.
             qc_tasks: Task keys for this run (defaults to ``[qc_task]``).
             entrypoint_rel_path: If set (e.g. ``"main.py"``), sidebar navigation uses ``st.switch_page``.
+            qc_pipeline: Pipeline name used in export file names (matches the sidebar save).
     """
     tasks_eff = list(qc_tasks) if qc_tasks else [qc_task]
 
@@ -137,12 +148,14 @@ def show_congratulations_page(
 
 	Thank you for completing the quality control process. Your thorough review ensures the integrity of our data!
 
-	✅ All QC records have been automatically saved.
-
 	"""
     )
 
     rater_id = SessionManager.get_rater_id()
+    pipeline_for_export = qc_pipeline or None
+    all_tasks_locked = SessionManager.is_all_tasks_mode_locked()
+    single_file_mode = bool(all_tasks_locked and len(tasks_eff) > 1)
+    export_task_default = "all" if single_file_mode else (tasks_eff[0] if len(tasks_eff) == 1 else "all")
     # Display session information and results summary
     task_label = ", ".join(tasks_eff) if len(tasks_eff) > 1 else tasks_eff[0]
     summary_count = num_pages_done if len(tasks_eff) > 1 else num_decided_rows
@@ -154,8 +167,8 @@ def show_congratulations_page(
     default_export_path = _default_congrats_export_path(
         out_dir,
         rater_id,
-        qc_pipeline=SessionManager.get_qc_session_label().split("_")[1] if "_" in SessionManager.get_qc_session_label() else None,
-        qc_task="all" if len(tasks_eff) > 1 else tasks_eff[0],
+        qc_pipeline=pipeline_for_export,
+        qc_task=export_task_default,
         qc_session_id=SessionManager.get_qc_session_id(),
     )
     if CONGRATS_EXPORT_PATH_KEY not in st.session_state:
@@ -176,9 +189,15 @@ def show_congratulations_page(
     )
 
     # Action buttons
-    col1, col2, col3 = st.columns([1, 1, 1])
+    col1, col2 = st.columns([1, 1])
     with col1:
-        export_target = _resolve_congrats_export_file_path(out_dir, rater_id, st.session_state.get(CONGRATS_EXPORT_PATH_KEY))
+        export_target = _resolve_congrats_export_file_path(
+            out_dir,
+            rater_id,
+            st.session_state.get(CONGRATS_EXPORT_PATH_KEY),
+            qc_pipeline=pipeline_for_export,
+            qc_task=export_task_default,
+        )
         if st.session_state.get(OVERWRITE_CONFIRMATION_PATH_KEY) == str(export_target):
             st.warning(f"⚠️ Existing export file will be overwritten: {export_target}")
             if st.button("Overwrite existing file", key="confirm_congrats_overwrite", type="primary", width="stretch"):
@@ -190,6 +209,9 @@ def show_congratulations_page(
                     export_rows,
                     drop_duplicates,
                     save_file_path=st.session_state.get(CONGRATS_EXPORT_PATH_KEY),
+                    single_file_mode=single_file_mode,
+                    qc_pipeline=pipeline_for_export,
+                    qc_task=export_task_default,
                 )
                 st.rerun()
         elif st.button(MESSAGES["export_results_button"], width="stretch"):
@@ -201,6 +223,9 @@ def show_congratulations_page(
                     export_rows,
                     drop_duplicates,
                     save_file_path=st.session_state.get(CONGRATS_EXPORT_PATH_KEY),
+                    single_file_mode=single_file_mode,
+                    qc_pipeline=pipeline_for_export,
+                    qc_task=export_task_default,
                 )
                 st.rerun()
             else:
@@ -208,16 +233,6 @@ def show_congratulations_page(
     with col2:
         if st.button(MESSAGES["previous_button"], width="stretch"):
             SessionManager.previous_page()
-            if entrypoint_rel_path:
-                st.switch_page(entrypoint_rel_path)
-            st.rerun()
-    with col3:
-        if st.button(MESSAGES["start_over_button"], width="stretch"):
-            SessionManager.set_landing_page_complete(False)
-            SessionManager.set_qc_cohort_order([])
-            SessionManager.set_participant_ids([])
-            SessionManager.set_qc_records([])
-            SessionManager.set_current_page(1)
             if entrypoint_rel_path:
                 st.switch_page(entrypoint_rel_path)
             st.rerun()
@@ -253,18 +268,69 @@ def _display_session_summary(
 
     with col2:
         st.subheader("QC Results Summary")
-        # Count final_qc values
-        if record_list:
-            final_qc_counts = {}
-            for record in record_list:
-                qc_value = record.final_qc
-                if qc_value not in QC_RATINGS:
-                    final_qc_counts["Unrated"] = final_qc_counts.get("Unrated", 0) + 1
-                else:
-                    final_qc_counts[qc_value] = final_qc_counts.get(qc_value, 0) + 1
+        if not record_list:
+            st.info("No QC records available yet.")
+            return
 
-            for qc_status, count in sorted(final_qc_counts.items()):
-                st.write(f"**{qc_status}:** {count}")
+        subject_counts: dict[str, int] = {}
+        facet_counts_by_name: dict[str, dict[str, int]] = {}
+        has_multifacet = False
+
+        def _count_bucket(value: str) -> str:
+            text = str(value or "").strip()
+            return text if text else "Unrated"
+
+        for record in record_list:
+            final_qc = record.final_qc if hasattr(record, "final_qc") else record.get("final_qc", "")
+            ratings_map = record.ratings if hasattr(record, "ratings") else record.get("ratings", None)
+
+            if isinstance(ratings_map, dict) and ratings_map:
+                has_multifacet = True
+                for facet, value in ratings_map.items():
+                    facet_name = str(facet).strip() or "(unknown facet)"
+                    bucket = _count_bucket(value)
+                    facet_counts_by_name.setdefault(facet_name, {})
+                    facet_counts_by_name[facet_name][bucket] = facet_counts_by_name[facet_name].get(bucket, 0) + 1
+
+            status = str(final_qc).strip()
+            if status.lower() in {"", "none", "nan"} and isinstance(ratings_map, dict):
+                status = SessionManager.derive_multifacet_final_qc(ratings_map) or ""
+            if status.lower() in {"", "none", "nan"}:
+                status = "Unrated"
+            subject_counts[status] = subject_counts.get(status, 0) + 1
+
+        st.write("**Subject-level stats:**")
+        subject_preferred_cols = ["PASS", "FAIL", "UNCERTAIN", "All-Pass", "All-Fail", "All-Uncertain", "Mixed", "Unrated"]
+        subject_present_cols = [c for c in subject_counts.keys() if c not in subject_preferred_cols]
+        subject_cols = [c for c in subject_preferred_cols if c in subject_counts] + sorted(subject_present_cols)
+        if not subject_cols:
+            subject_cols = ["Unrated"]
+        subject_table = pd.DataFrame(
+            [{col: int(subject_counts.get(col, 0)) for col in subject_cols}],
+            index=["Count"],
+        )
+        st.table(subject_table)
+
+        if has_multifacet and facet_counts_by_name:
+            st.write("**Facet-level stats:**")
+            facet_preferred_cols = ["PASS", "FAIL", "UNCERTAIN", "Unrated"]
+            facet_seen_cols: set[str] = set()
+            for counts in facet_counts_by_name.values():
+                facet_seen_cols.update(counts.keys())
+            facet_extra_cols = sorted([c for c in facet_seen_cols if c not in facet_preferred_cols])
+            facet_cols = [c for c in facet_preferred_cols if c in facet_seen_cols] + facet_extra_cols
+            if not facet_cols:
+                facet_cols = ["Unrated"]
+
+            facet_rows: list[dict[str, int | str]] = []
+            for facet_name in sorted(facet_counts_by_name.keys()):
+                counts = facet_counts_by_name[facet_name]
+                row = {"Facet": facet_name}
+                for col in facet_cols:
+                    row[col] = int(counts.get(col, 0))
+                facet_rows.append(row)
+            facet_table = pd.DataFrame(facet_rows)
+            st.table(facet_table)
 
 
 def _export_qc_results(
@@ -274,6 +340,9 @@ def _export_qc_results(
     drop_duplicates: bool,
     *,
     save_file_path: str | None = None,
+    single_file_mode: bool = False,
+    qc_pipeline: str | None = None,
+    qc_task: str | None = None,
 ) -> None:
     """Export QC results to file.
 
@@ -283,13 +352,60 @@ def _export_qc_results(
             record_list: List of QC records to export
             drop_duplicates: Whether to drop duplicate records
     """
-    out_file = _resolve_congrats_export_file_path(out_dir, rater_id, save_file_path)
-    if record_list:
-        out_path, dropped, dropped_details = save_qc_results_to_csv(out_file, record_list, drop_duplicates)
-        msg = SUCCESS_MESSAGES["records_exported"].format(path=out_path)
-        if dropped:
-            lines = "\n".join(f"- {pid} × {sid}: {', '.join(tasks)}" for (pid, sid), tasks in dropped_details.items())
-            msg += f"\n\n⚠️ {dropped} duplicate record(s) removed (kept latest):\n{lines}"
-        st.session_state["_pending_export_msg"] = ("success", msg)
-    else:
+    out_file = _resolve_congrats_export_file_path(
+        out_dir,
+        rater_id,
+        save_file_path,
+        qc_pipeline=qc_pipeline,
+        qc_task=qc_task,
+    )
+    if not record_list:
         st.session_state["_pending_export_msg"] = ("info", INFO_MESSAGES["no_export_records"])
+        return
+
+    dropped_total = 0
+    dropped_details_total: dict[tuple[str, str], list[str]] = {}
+    saved_paths: list[str] = []
+    if single_file_mode:
+        out_path, dropped, dropped_details = save_qc_results_to_csv(out_file, record_list, drop_duplicates)
+        saved_paths.append(str(out_path))
+        dropped_total += dropped
+        for key, tasks in dropped_details.items():
+            merged = dropped_details_total.setdefault(key, [])
+            for t in tasks:
+                if t not in merged:
+                    merged.append(t)
+    else:
+        records_by_task: dict[str, list] = {}
+        pipeline_by_task: dict[str, str] = {}
+        for rec in record_list:
+            task_name = str((rec.qc_task if hasattr(rec, "qc_task") else rec.get("qc_task", "")) or "").strip() or "unknown_task"
+            pipe_name = str((rec.pipeline if hasattr(rec, "pipeline") else rec.get("pipeline", "")) or "").strip() or "qc"
+            records_by_task.setdefault(task_name, []).append(rec)
+            pipeline_by_task.setdefault(task_name, pipe_name)
+
+        for task_name in sorted(records_by_task.keys()):
+            rows = records_by_task[task_name]
+            pipe_name = pipeline_by_task.get(task_name, "qc")
+            if len(records_by_task) == 1 and save_file_path:
+                target = out_file
+            else:
+                base_dir = out_file.parent if out_file.suffix else out_file
+                filename = Path(_default_congrats_export_path(out_dir, rater_id, qc_pipeline=pipe_name, qc_task=task_name)).name
+                target = base_dir / filename
+
+            out_path, dropped, dropped_details = save_qc_results_to_csv(target, rows, drop_duplicates)
+            saved_paths.append(str(out_path))
+            dropped_total += dropped
+            for key, tasks in dropped_details.items():
+                merged = dropped_details_total.setdefault(key, [])
+                for t in tasks:
+                    if t not in merged:
+                        merged.append(t)
+
+    path_label = saved_paths[0] if len(saved_paths) == 1 else ", ".join(saved_paths)
+    msg = SUCCESS_MESSAGES["records_exported"].format(path=path_label)
+    if dropped_total:
+        lines = "\n".join(f"- {pid} × {sid}: {', '.join(tasks)}" for (pid, sid), tasks in dropped_details_total.items())
+        msg += f"\n\n⚠️ {dropped_total} duplicate record(s) removed (kept latest):\n{lines}"
+    st.session_state["_pending_export_msg"] = ("success", msg)
